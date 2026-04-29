@@ -1,3 +1,4 @@
+// App.jsx — mis à jour Sprint 5 + 6
 import {
   BrowserRouter,
   Routes,
@@ -6,13 +7,17 @@ import {
   Outlet,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ToastProvider } from "./context/ToastContext"; // ← Sprint 6
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import KeepContact from "./pages/KeepContact";
-import Planification from "./pages/Planification";
 import Livreur from "./pages/Livreur";
 import Stock from "./pages/Stock";
 import Landing from "./pages/Landing";
+import PlanifWorkflow from "./pages/planification/PlanifWorkflow";
+import PlanifIntelligent from "./pages/planification/PlanifIntelligent";
+import TransportWorkflow from "./pages/transport/TransportWorkflow";
+import TransportIntelligent from "./pages/transport/TransportIntelligent"; // ← Sprint 5
 
 function AppLayout() {
   return (
@@ -33,26 +38,39 @@ function PrivateRoute() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Pages publiques — accessibles sans connexion */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
+      <ToastProvider>
+        {" "}
+        {/* ← Sprint 6 : wraps tout l'app */}
+        <BrowserRouter>
+          <Routes>
+            {/* Pages publiques */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
 
-          {/* Pages protégées — connexion requise */}
-          <Route element={<PrivateRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<KeepContact />} />
-              <Route path="/planification" element={<Planification />} />
-              <Route path="/livreur" element={<Livreur />} />
-              <Route path="/stock" element={<Stock />} />
+            {/* Pages protégées */}
+            <Route element={<PrivateRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<KeepContact />} />
+                <Route path="/livreur" element={<Livreur />} />
+                <Route path="/stock" element={<Stock />} />
+                <Route path="/planification" element={<PlanifWorkflow />} />
+                <Route
+                  path="/planification/intel"
+                  element={<PlanifIntelligent />}
+                />
+                <Route path="/transport" element={<TransportWorkflow />} />
+                <Route
+                  path="/transport/intel"
+                  element={<TransportIntelligent />}
+                />{" "}
+                {/* ← Sprint 5 */}
+              </Route>
             </Route>
-          </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

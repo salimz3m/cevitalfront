@@ -92,6 +92,16 @@ const STYLE = `
   }
   .ds-nav-link.active i, .ds-nav-link:hover i { opacity: 1; color: var(--red); }
 
+  /* Lien sous-item (indenté) */
+  .ds-nav-link.sub {
+    padding-left: 44px;
+    font-size: .68rem;
+    letter-spacing: .12em;
+    color: rgba(255,255,255,.3);
+  }
+  .ds-nav-link.sub::before { left: 28px; height: 50%; }
+  .ds-nav-link.sub i { font-size: .72rem; }
+
   .ds-sidebar-footer {
     padding: 16px 12px 24px;
     border-top: 1px solid rgba(255,255,255,.06);
@@ -129,6 +139,28 @@ const NAV_ITEMS = [
     icon: "fa-calendar-check",
     label: "Planification",
     roles: ["admin", "planification"],
+    end: true,
+  },
+  {
+    to: "/planification/intel",
+    icon: "fa-brain",
+    label: "Planning IA",
+    roles: ["admin", "planification"],
+    sub: true,
+  },
+  {
+    to: "/transport",
+    icon: "fa-truck",
+    label: "Transport",
+    roles: ["admin", "transport"],
+    end: true,
+  },
+  {
+    to: "/transport/intel",
+    icon: "fa-route",
+    label: "Transport IA",
+    roles: ["admin", "transport"],
+    sub: true,
   },
   {
     to: "/livreur",
@@ -186,7 +218,7 @@ export default function Sidebar() {
               <i
                 className={`fas ${roleInfo.icon}`}
                 style={{ marginRight: 4, fontSize: ".55rem" }}
-              ></i>
+              />
               {roleInfo.label}
             </div>
           </div>
@@ -200,11 +232,12 @@ export default function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            end={item.end}
             className={({ isActive }) =>
-              `ds-nav-link${isActive ? " active" : ""}`
+              `ds-nav-link${item.sub ? " sub" : ""}${isActive ? " active" : ""}`
             }
           >
-            <i className={`fas ${item.icon}`}></i>
+            <i className={`fas ${item.icon}`} />
             {item.label}
           </NavLink>
         ))}
@@ -213,7 +246,7 @@ export default function Sidebar() {
       {/* Footer logout */}
       <div className="ds-sidebar-footer">
         <button className="ds-logout" onClick={handleLogout}>
-          <i className="fas fa-right-from-bracket"></i>
+          <i className="fas fa-right-from-bracket" />
           Déconnexion
         </button>
       </div>
