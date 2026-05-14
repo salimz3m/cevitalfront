@@ -1,12 +1,13 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: "http://localhost:5000/api",
 });
 
 // Injecte le token JWT dans chaque requête
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
+  console.log(localStorage.getItem("token"));
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

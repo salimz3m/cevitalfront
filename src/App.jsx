@@ -1,76 +1,345 @@
-// App.jsx — mis à jour Sprint 5 + 6
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  Outlet,
-} from "react-router-dom";
+// frontend/src/App.jsx — mis à jour Sprint 7 + Sprint 8
+// Ajoute les routes /stock/* et /admin/*
+
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { ToastProvider } from "./context/ToastContext"; // ← Sprint 6
-import Sidebar from "./components/Sidebar";
+import { ToastProvider } from "./context/ToastContext";
+import Sidebar, { sidebarWidth } from "./components/Sidebar";
+
+// ── Pages existantes ────────────────────────────────────────
 import Login from "./pages/Login";
-import KeepContact from "./pages/KeepContact";
-import Livreur from "./pages/Livreur";
-import Stock from "./pages/Stock";
+import Register from "./pages/Register";
+
 import Landing from "./pages/Landing";
+import KeepContact from "./pages/KeepContact";
+
+// Planification
 import PlanifWorkflow from "./pages/planification/PlanifWorkflow";
 import PlanifIntelligent from "./pages/planification/PlanifIntelligent";
-import TransportWorkflow from "./pages/transport/TransportWorkflow";
-import TransportIntelligent from "./pages/transport/TransportIntelligent"; // ← Sprint 5
 
-function AppLayout() {
+// Transport
+import TransportWorkflow from "./pages/transport/TransportWorkflow";
+import TransportIntelligent from "./pages/transport/TransportIntelligent";
+
+// ── Sprint 7 — Stock ────────────────────────────────────────
+import StockDashboard from "./pages/stock/StockDashboard";
+import CarteStocks from "./pages/stock/CarteStocks";
+import StockCLRDetail from "./pages/stock/StockCLRDetail";
+import MouvementsStock from "./pages/stock/MouvementsStock";
+import StockIntelligent from "./pages/stock/StockIntelligent";
+
+// ── Sprint 8 — Admin ────────────────────────────────────────
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import UsersManagement from "./pages/admin/UsersManagement";
+import ModulesConfig from "./pages/admin/ModulesConfig";
+import CompanySettings from "./pages/admin/CompanySettings";
+import DataManager from "./pages/admin/DataManager";
+import Infrastructure from "./pages/admin/Infrastructure";
+import Commercial from "./pages/modules/Commercial";
+import Kpi from "./pages/modules/KPIDashboard";
+
+// ─── Guards ──────────────────────────────────────────────────
+function RequireAuth({ children, roles }) {
+  const { user, loading } = useAuth();
+  if (loading)
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          background: "#0f1117",
+          color: "#3b82f6",
+        }}
+      >
+        <i
+          className="fa-solid fa-circle-notch fa-spin"
+          style={{ fontSize: "32px" }}
+        />
+      </div>
+    );
+  if (!user) return <Navigate to="/login" replace />;
+  if (roles && !roles.includes(user.role))
+    return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+function RequireGuest({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+// ─── Layout avec sidebar ─────────────────────────────────────
+function AppLayout({ children }) {
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: "flex", minHeight: "100vh", background: "#0f1117" }}>
       <Sidebar />
-      <main className="flex-1 p-8 overflow-auto bg-gray-50">
-        <Outlet />
+      <main
+        style={{ marginLeft: `${sidebarWidth}px`, flex: 1, minHeight: "100vh" }}
+      >
+        {children}
       </main>
     </div>
   );
 }
 
-function PrivateRoute() {
-  const { user } = useAuth();
-  return user ? <Outlet /> : <Navigate to="/login" replace />;
-}
-
+// ─── App racine ───────────────────────────────────────────────
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        {" "}
-        {/* ← Sprint 6 : wraps tout l'app */}
-        <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
           <Routes>
-            {/* Pages publiques */}
+            {/* Public */}
             <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/keep-contact" element={<KeepContact />} />
+            <Route
+              path="/login"
+              element={
+                <RequireGuest>
+                  <Login />
+                </RequireGuest>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <RequireGuest>
+                  <Register />
+                </RequireGuest>
+              }
+            />
+            {/* Dashboard */}
+            <Route
+              path="/dashboard"
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <StockDashboard />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            {/* ── Planification ── */}
+            <Route
+              path="/planification"
+              element={
+                <RequireAuth roles={["admin", "planification"]}>
+                  <AppLayout>
+                    <PlanifWorkflow />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/planification/intelligent"
+              element={
+                <RequireAuth roles={["admin", "planification"]}>
+                  <AppLayout>
+                    <PlanifIntelligent />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            {/* ── Transport ── */}
+            <Route
+              path="/transport"
+              element={
+                <RequireAuth roles={["admin", "transport"]}>
+                  <AppLayout>
+                    <TransportWorkflow />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/transport/intelligent"
+              element={
+                <RequireAuth roles={["admin", "transport"]}>
+                  <AppLayout>
+                    <TransportIntelligent />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            {/* ── Stock Sprint 7 ── */}
+            <Route
+              path="/stock"
+              element={
+                <RequireAuth
+                  roles={[
+                    "admin",
+                    "planification",
+                    "transport",
+                    "keep_contact",
+                  ]}
+                >
+                  <AppLayout>
+                    <StockDashboard />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/stock/carte"
+              element={
+                <RequireAuth
+                  roles={[
+                    "admin",
+                    "planification",
+                    "transport",
+                    "keep_contact",
+                  ]}
+                >
+                  <AppLayout>
+                    <CarteStocks />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/stock/clr/:id"
+              element={
+                <RequireAuth
+                  roles={[
+                    "admin",
+                    "planification",
+                    "transport",
+                    "keep_contact",
+                  ]}
+                >
+                  <AppLayout>
+                    <StockCLRDetail />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/stock/mouvements"
+              element={
+                <RequireAuth
+                  roles={[
+                    "admin",
+                    "planification",
+                    "transport",
+                    "keep_contact",
+                  ]}
+                >
+                  <AppLayout>
+                    <MouvementsStock />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/stock/intelligent"
+              element={
+                <RequireAuth
+                  roles={[
+                    "admin",
+                    "planification",
+                    "transport",
+                    "keep_contact",
+                  ]}
+                >
+                  <AppLayout>
+                    <StockIntelligent />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            {/* ── Admin Sprint 8 ── */}
+            <Route
+              path="/admin"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <AdminDashboard />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <UsersManagement />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/modules"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <ModulesConfig />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/company"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <CompanySettings />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/data"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <DataManager />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/infrastructure"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <Infrastructure />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            {/* ── Commercial Sprint 13 ── */}
+            <Route
+              path="/commercial"
+              element={
+                <RequireAuth roles={["admin", "planification", "commercial"]}>
+                  <AppLayout>
+                    <Commercial />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
 
-            {/* Pages protégées */}
-            <Route element={<PrivateRoute />}>
-              <Route element={<AppLayout />}>
-                <Route path="/dashboard" element={<KeepContact />} />
-                <Route path="/livreur" element={<Livreur />} />
-                <Route path="/stock" element={<Stock />} />
-                <Route path="/planification" element={<PlanifWorkflow />} />
-                <Route
-                  path="/planification/intel"
-                  element={<PlanifIntelligent />}
-                />
-                <Route path="/transport" element={<TransportWorkflow />} />
-                <Route
-                  path="/transport/intel"
-                  element={<TransportIntelligent />}
-                />{" "}
-                {/* ← Sprint 5 */}
-              </Route>
-            </Route>
-
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* ── KPI Dashboard Sprint 14 ── */}
+            <Route
+              path="/kpi"
+              element={
+                <RequireAuth roles={["admin", "planification"]}>
+                  <AppLayout>
+                    <Kpi />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
-        </BrowserRouter>
-      </ToastProvider>
-    </AuthProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

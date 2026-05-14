@@ -1,6 +1,7 @@
 // pages/transport/TransportIntelligent.jsx — Sprint 5
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import ModuleGate from "../../components/ModuleGate";
 
 // ─── Design tokens (identiques à TransportWorkflow) ──────────
 const C = {
@@ -902,16 +903,17 @@ export default function TransportIntelligent() {
   // RENDER PRINCIPAL
   // ════════════════════════════════════════════════════════════════
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily: "'Inter', 'Segoe UI', sans-serif",
-        fontSize: 14,
-      }}
-    >
-      <style>{`
+    <ModuleGate module="TRANSPORT_INTEL">
+      <div
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+          color: C.text,
+          fontFamily: "'Inter', 'Segoe UI', sans-serif",
+          fontSize: 14,
+        }}
+      >
+        <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         * { box-sizing: border-box; }
@@ -920,174 +922,175 @@ export default function TransportIntelligent() {
         ::-webkit-scrollbar-thumb { background: #252a38; border-radius: 3px; }
       `}</style>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
-        {/* ── Header ─────────────────────────────────────────── */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            marginBottom: 28,
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 26,
-                fontWeight: 800,
-                color: C.text,
-              }}
-            >
-              🧠 Transport Intelligent
-            </h1>
-            <p style={{ margin: "4px 0 0", color: C.muted, fontSize: 13 }}>
-              Suggestions de regroupement · Scoring prestataires · Alertes
-              proactives
-              {lastRefresh && (
-                <span style={{ marginLeft: 12, color: C.border }}>
-                  Actualisé {lastRefresh.toLocaleTimeString("fr-DZ")}
-                </span>
-              )}
-            </p>
-          </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              padding: "8px 16px",
-              color: C.text,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.5 : 1,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                display: "inline-block",
-                animation: loading ? "spin 1s linear infinite" : "none",
-              }}
-            >
-              ⟳
-            </span>
-            Actualiser
-          </button>
-        </div>
-
-        {/* ── Chargement ─────────────────────────────────────── */}
-        {loading && <Spinner />}
-
-        {/* ── Erreur ─────────────────────────────────────────── */}
-        {!loading && error && (
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
+          {/* ── Header ─────────────────────────────────────────── */}
           <div
             style={{
-              background: C.redLo,
-              border: `1px solid ${C.red}40`,
-              borderRadius: 12,
-              padding: 24,
-              textAlign: "center",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginBottom: 28,
             }}
           >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>⚠</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.red }}>
-              {error}
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 26,
+                  fontWeight: 800,
+                  color: C.text,
+                }}
+              >
+                🧠 Transport Intelligent
+              </h1>
+              <p style={{ margin: "4px 0 0", color: C.muted, fontSize: 13 }}>
+                Suggestions de regroupement · Scoring prestataires · Alertes
+                proactives
+                {lastRefresh && (
+                  <span style={{ marginLeft: 12, color: C.border }}>
+                    Actualisé {lastRefresh.toLocaleTimeString("fr-DZ")}
+                  </span>
+                )}
+              </p>
             </div>
             <button
               onClick={load}
+              disabled={loading}
               style={{
-                marginTop: 16,
-                background: C.red,
-                color: "#fff",
-                border: "none",
+                background: C.surface,
+                border: `1px solid ${C.border}`,
                 borderRadius: 8,
-                padding: "8px 20px",
+                padding: "8px 16px",
+                color: C.text,
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.5 : 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              Réessayer
+              <span
+                style={{
+                  display: "inline-block",
+                  animation: loading ? "spin 1s linear infinite" : "none",
+                }}
+              >
+                ⟳
+              </span>
+              Actualiser
             </button>
           </div>
-        )}
 
-        {/* ── Contenu ─────────────────────────────────────────── */}
-        {!loading && !error && data && (
-          <div style={{ animation: "fadeIn 0.3s ease" }}>
-            {/* Résumé exécutif */}
-            {renderResume()}
+          {/* ── Chargement ─────────────────────────────────────── */}
+          {loading && <Spinner />}
 
-            {/* Onglets */}
+          {/* ── Erreur ─────────────────────────────────────────── */}
+          {!loading && error && (
             <div
               style={{
-                display: "flex",
-                gap: 4,
-                marginBottom: 24,
-                borderBottom: `1px solid ${C.border}`,
-                paddingBottom: 0,
+                background: C.redLo,
+                border: `1px solid ${C.red}40`,
+                borderRadius: 12,
+                padding: 24,
+                textAlign: "center",
               }}
             >
-              {TABS.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  style={{
-                    padding: "10px 18px",
-                    borderRadius: "8px 8px 0 0",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    position: "relative",
-                    background: tab === t.id ? C.card : "transparent",
-                    color: tab === t.id ? C.text : C.muted,
-                    borderBottom:
-                      tab === t.id
-                        ? `2px solid ${C.accent}`
-                        : "2px solid transparent",
-                    transition: "all .15s",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  {t.label}
-                  {t.badge > 0 && (
-                    <span
-                      style={{
-                        background: t.badgeColor,
-                        color: "#fff",
-                        borderRadius: 10,
-                        padding: "1px 7px",
-                        fontSize: 10,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {t.badge}
-                    </span>
-                  )}
-                </button>
-              ))}
+              <div style={{ fontSize: 32, marginBottom: 8 }}>⚠</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.red }}>
+                {error}
+              </div>
+              <button
+                onClick={load}
+                style={{
+                  marginTop: 16,
+                  background: C.red,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 20px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Réessayer
+              </button>
             </div>
+          )}
 
-            {/* Contenu onglet */}
-            <div>
-              {tab === "alertes" && renderAlertes()}
-              {tab === "regroupement" && renderRegroupement()}
-              {tab === "prestataires" && renderPrestataires()}
-              {tab === "performance" && renderPerformance()}
+          {/* ── Contenu ─────────────────────────────────────────── */}
+          {!loading && !error && data && (
+            <div style={{ animation: "fadeIn 0.3s ease" }}>
+              {/* Résumé exécutif */}
+              {renderResume()}
+
+              {/* Onglets */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 4,
+                  marginBottom: 24,
+                  borderBottom: `1px solid ${C.border}`,
+                  paddingBottom: 0,
+                }}
+              >
+                {TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: "8px 8px 0 0",
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      position: "relative",
+                      background: tab === t.id ? C.card : "transparent",
+                      color: tab === t.id ? C.text : C.muted,
+                      borderBottom:
+                        tab === t.id
+                          ? `2px solid ${C.accent}`
+                          : "2px solid transparent",
+                      transition: "all .15s",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {t.label}
+                    {t.badge > 0 && (
+                      <span
+                        style={{
+                          background: t.badgeColor,
+                          color: "#fff",
+                          borderRadius: 10,
+                          padding: "1px 7px",
+                          fontSize: 10,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {t.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Contenu onglet */}
+              <div>
+                {tab === "alertes" && renderAlertes()}
+                {tab === "regroupement" && renderRegroupement()}
+                {tab === "prestataires" && renderPrestataires()}
+                {tab === "performance" && renderPerformance()}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </ModuleGate>
   );
 }
