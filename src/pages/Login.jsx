@@ -243,14 +243,14 @@ export default function Login() {
           </form>
 
           <a
-            href="/"
+            href="/register"
             className="lp-back"
             onClick={(e) => {
               e.preventDefault();
-              navigate("/");
+              navigate("/register");
             }}
           >
-            <i className="fas fa-arrow-left"></i> Retour à l'accueil
+            <i className="fas fa-user-plus"></i>Register
           </a>
         </div>
       </div>

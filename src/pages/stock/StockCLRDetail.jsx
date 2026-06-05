@@ -485,8 +485,8 @@ export default function StockCLRDetail() {
                         <span>{pct.toFixed(0)}%</span>
                       </div>
                       <NiveauBar
-                        disponible={s.qtéDisponible}
-                        reservee={s.qtéReservee}
+                        disponible={s.qteDisponible}
+                        reservee={s.qteReservee}
                         optimal={s.seuilOptimal}
                         minimum={s.seuilMinimum}
                       />

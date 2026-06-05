@@ -1,76 +1,116 @@
-// pages/transport/TransportWorkflow.jsx — Refonte Sprint 11
-import { useState, useEffect, useCallback } from "react";
+// pages/transport/TransportWorkflow.jsx — Refonte Sprint 11 v2
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import axios from "axios";
 
-// ─── Palette ─────────────────────────────────────────────────
-const C = {
-  bg: "#0a0d14",
-  surface: "#111520",
-  card: "#161b2a",
-  border: "#1e2538",
-  accent: "#3b82f6",
-  accentLo: "rgba(59,130,246,0.1)",
-  green: "#10b981",
-  greenLo: "rgba(16,185,129,0.1)",
-  orange: "#f59e0b",
-  orangeLo: "rgba(245,158,11,0.1)",
-  red: "#ef4444",
-  redLo: "rgba(239,68,68,0.1)",
-  purple: "#8b5cf6",
-  purpleLo: "rgba(139,92,246,0.1)",
-  text: "#e2e8f0",
-  muted: "#64748b",
-  soft: "#94a3b8",
+// ─── Design Tokens ─────────────────────────────────────────────
+const T = {
+  white: "#ffffff",
+  bg: "#f7f7f5",
+  surface: "#ffffff",
+  card: "#ffffff",
+  border: "#e4e4e0",
+  borderMid: "#d0d0cc",
+  borderStrong: "#b0b0aa",
+  black: "#111110",
+  gray: "#6b6b67",
+  grayLight: "#9b9b97",
+  grayFaint: "#f0f0ee",
+  red: "#c0392b",
+  redLight: "#fdf2f1",
+  redBorder: "#f0c4c0",
+  green: "#1a6b3c",
+  greenLight: "#f0f8f3",
+  greenBorder: "#b8dfc8",
+  orange: "#b85c00",
+  orangeLight: "#fdf6ef",
+  orangeBorder: "#f0d4b0",
+  blue: "#1a4a8a",
+  blueLight: "#f0f4fc",
+  blueBorder: "#c0d4f0",
 };
 
+// ─── Statuts ──────────────────────────────────────────────────
 const STATUT = {
-  CREE: { label: "Créé", color: C.accent, bg: C.accentLo, icon: "📋", step: 1 },
+  CREE: {
+    label: "Cree",
+    color: T.blue,
+    bg: T.blueLight,
+    border: T.blueBorder,
+    step: 1,
+  },
   EN_ROUTE: {
     label: "En route",
-    color: C.orange,
-    bg: C.orangeLo,
-    icon: "🚛",
+    color: T.orange,
+    bg: T.orangeLight,
+    border: T.orangeBorder,
     step: 2,
   },
-  LIVRE: { label: "Livré", color: C.green, bg: C.greenLo, icon: "✅", step: 3 },
+  LIVRE: {
+    label: "Livre",
+    color: T.green,
+    bg: T.greenLight,
+    border: T.greenBorder,
+    step: 3,
+  },
   INCIDENT: {
     label: "Incident",
-    color: C.red,
-    bg: C.redLo,
-    icon: "⚠️",
+    color: T.red,
+    bg: T.redLight,
+    border: T.redBorder,
     step: 2,
   },
 };
 
 const FAMILLE_COLOR = {
-  HUILE: "#f59e0b",
-  MARGARINE: "#ec4899",
-  SUCRE: "#8b5cf6",
-  SMEN: "#f97316",
-  CHOCOLAT: "#ef4444",
-  SAUCE: "#22c55e",
-  EAU: "#3b82f6",
-  MIEL: "#eab308",
-  CONFITURE: "#d946ef",
-  BOISSON: "#10b981",
-  AUTRE: "#64748b",
+  HUILE: "#b85c00",
+  MARGARINE: "#8b3a62",
+  SUCRE: "#5a3a9b",
+  SMEN: "#b84c00",
+  CHOCOLAT: "#8b2020",
+  SAUCE: "#1a6b3c",
+  EAU: "#1a4a8a",
+  MIEL: "#9b7a00",
+  CONFITURE: "#8b2060",
+  BOISSON: "#1a6b5a",
+  AUTRE: "#6b6b67",
 };
 
-// ─── Calculs ─────────────────────────────────────────────────
 const POIDS_CAMION = 24000;
 
+// PAR
+function getItems(ligne) {
+  if (ligne.itemsJson?.length > 0) {
+    return ligne.itemsJson.map((ij) => {
+      if (ij.libre) {
+        return {
+          quantity: ij.quantitePlanifiee,
+          productName: ij.nom,
+          sku: ij.sku,
+          unit: "u",
+          libre: true,
+          produitId: ij.produitId, // ← AJOUT
+          produit: {
+            famille: ij.famille,
+            poidsKg: ij.poidsKg ?? null,
+            qteParCarton: ij.qteParCarton ?? null,
+            qteParPalette: ij.qteParPalette ?? null,
+          },
+        };
+      }
+      const orig = (ligne.order?.OrderItems || []).find(
+        (i) => i.id === ij.orderItemId,
+      );
+      return {
+        ...orig,
+        quantity: ij.quantitePlanifiee,
+        produitId: ij.produitId ?? orig?.produitId, // ← AJOUT
+      };
+    });
+  }
+  return ligne.order?.OrderItems || [];
+}
 function calcLignePoids(ligne) {
-  const items =
-    ligne.itemsJson?.length > 0
-      ? ligne.itemsJson.map((ij) => {
-          const orig = (ligne.order?.OrderItems || []).find(
-            (i) => i.id === ij.orderItemId,
-          );
-          return { ...orig, quantity: ij.quantitePlanifiee };
-        })
-      : ligne.order?.OrderItems || [];
-
-  return items.reduce((sum, item) => {
+  return getItems(ligne).reduce((sum, item) => {
     const p = item?.produit;
     if (!p?.poidsKg) return sum;
     return sum + parseFloat(p.poidsKg) * parseFloat(item.quantity || 0);
@@ -78,17 +118,7 @@ function calcLignePoids(ligne) {
 }
 
 function calcLignePalettes(ligne) {
-  const items =
-    ligne.itemsJson?.length > 0
-      ? ligne.itemsJson.map((ij) => {
-          const orig = (ligne.order?.OrderItems || []).find(
-            (i) => i.id === ij.orderItemId,
-          );
-          return { ...orig, quantity: ij.quantitePlanifiee };
-        })
-      : ligne.order?.OrderItems || [];
-
-  return items.reduce((sum, item) => {
+  return getItems(ligne).reduce((sum, item) => {
     const p = item?.produit;
     if (!p?.qteParCarton || !p?.qteParPalette) return sum;
     const cartons = Math.ceil(
@@ -98,174 +128,197 @@ function calcLignePalettes(ligne) {
   }, 0);
 }
 
-// ─── API ─────────────────────────────────────────────────────
+function getClrIdFromLigne(ligne) {
+  return ligne.clr?.id ?? ligne.clrId ?? null;
+}
+
+// ─── API instance avec intercepteurs ─────────────────────────
 const api = axios.create({ baseURL: "/api" });
 api.interceptors.request.use((cfg) => {
   const t = localStorage.getItem("token");
   if (t) cfg.headers.Authorization = `Bearer ${t}`;
   return cfg;
 });
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  },
+);
 
-// ─── Hooks ───────────────────────────────────────────────────
+// ─── Hook Toast ───────────────────────────────────────────────
 function useToast() {
   const [toasts, setToasts] = useState([]);
-  const push = (message, type = "success") => {
+  const push = useCallback((message, type = "success") => {
     const id = Date.now();
     setToasts((p) => [...p, { id, message, type }]);
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 3500);
-  };
+  }, []);
   return { toasts, push };
 }
 
-// ─── UI Atoms ────────────────────────────────────────────────
+// ─── Badge statut ────────────────────────────────────────────
 const Badge = ({ statut }) => {
   const cfg = STATUT[statut] || {
     label: statut,
-    color: C.muted,
-    bg: C.surface,
-    icon: "•",
+    color: T.gray,
+    bg: T.grayFaint,
+    border: T.border,
   };
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 5,
-        padding: "3px 12px",
-        borderRadius: 20,
-        fontSize: 11,
+        padding: "3px 10px",
+        borderRadius: 4,
+        fontSize: 10,
         fontWeight: 700,
         letterSpacing: "0.06em",
+        textTransform: "uppercase",
         color: cfg.color,
         background: cfg.bg,
-        border: `1px solid ${cfg.color}30`,
+        border: `1px solid ${cfg.border}`,
       }}
     >
-      {cfg.icon} {cfg.label}
+      {cfg.label}
     </span>
   );
 };
 
+// ─── Bouton ───────────────────────────────────────────────────
 const Btn = ({
   onClick,
   children,
   variant = "primary",
   disabled = false,
   size = "md",
+  type = "button",
 }) => {
-  const V = {
-    primary: { bg: C.accent, color: "#fff" },
-    success: { bg: C.green, color: "#fff" },
-    danger: { bg: C.red, color: "#fff" },
-    ghost: {
-      bg: "transparent",
-      color: C.soft,
-      border: `1px solid ${C.border}`,
-    },
-    warning: { bg: C.orange, color: "#fff" },
-    purple: { bg: C.purple, color: "#fff" },
+  const variants = {
+    primary: { bg: T.black, color: T.white, border: T.black },
+    danger: { bg: T.red, color: T.white, border: T.red },
+    success: { bg: T.green, color: T.white, border: T.green },
+    warning: { bg: T.orange, color: T.white, border: T.orange },
+    ghost: { bg: "transparent", color: T.gray, border: T.borderMid },
+    outline: { bg: "transparent", color: T.black, border: T.black },
   };
-  const SZ = { sm: "5px 12px", md: "8px 18px", lg: "11px 26px" };
-  const FSZ = { sm: 11, md: 13, lg: 14 };
-  const s = V[variant] || V.primary;
+  const sizes = { sm: "5px 12px", md: "8px 16px", lg: "10px 22px" };
+  const fSizes = { sm: 11, md: 12, lg: 13 };
+  const s = variants[variant] || variants.primary;
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
       style={{
         background: s.bg,
         color: s.color,
-        border: s.border || "none",
-        borderRadius: 8,
-        padding: SZ[size],
-        fontSize: FSZ[size],
-        fontWeight: 700,
+        border: `1px solid ${s.border}`,
+        borderRadius: 6,
+        padding: sizes[size],
+        fontSize: fSizes[size],
+        fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1,
-        transition: "opacity .15s, transform .1s",
+        transition: "opacity .15s",
         fontFamily: "inherit",
-        letterSpacing: "0.03em",
+        letterSpacing: "0.02em",
+        whiteSpace: "nowrap",
       }}
-      onMouseEnter={(e) =>
-        !disabled && (e.currentTarget.style.opacity = "0.85")
-      }
-      onMouseLeave={(e) => !disabled && (e.currentTarget.style.opacity = "1")}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.opacity = "0.75";
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled) e.currentTarget.style.opacity = "1";
+      }}
     >
       {children}
     </button>
   );
 };
 
-const Input = ({
+// ─── Champ formulaire ────────────────────────────────────────
+const Field = ({
   label,
   value,
   onChange,
   type = "text",
   placeholder = "",
   required = false,
+  children,
 }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
     <label
       style={{
-        fontSize: 11,
-        color: C.muted,
+        fontSize: 10,
+        color: T.gray,
         fontWeight: 700,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
       }}
     >
       {label}
-      {required && <span style={{ color: C.red }}> *</span>}
+      {required && <span style={{ color: T.red }}> *</span>}
     </label>
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      style={{
-        background: C.bg,
-        border: `1px solid ${C.border}`,
-        borderRadius: 8,
-        padding: "9px 12px",
-        color: C.text,
-        fontSize: 13,
-        outline: "none",
-        fontFamily: "inherit",
-      }}
-      onFocus={(e) => (e.target.style.borderColor = C.accent)}
-      onBlur={(e) => (e.target.style.borderColor = C.border)}
-    />
+    {children || (
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          background: T.white,
+          border: `1px solid ${T.border}`,
+          borderRadius: 6,
+          padding: "8px 11px",
+          color: T.black,
+          fontSize: 13,
+          outline: "none",
+          fontFamily: "inherit",
+          width: "100%",
+        }}
+        onFocus={(e) => (e.target.style.borderColor = T.black)}
+        onBlur={(e) => (e.target.style.borderColor = T.border)}
+      />
+    )}
   </div>
 );
 
+// ─── Modal ────────────────────────────────────────────────────
 const Modal = ({ open, onClose, title, children, wide = false }) => {
   if (!open) return null;
   return (
     <div
+      onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.8)",
+        background: "rgba(0,0,0,0.30)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1000,
         padding: 20,
       }}
-      onClick={onClose}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
-          background: C.surface,
-          border: `1px solid ${C.border}`,
-          borderRadius: 16,
+          background: T.white,
+          border: `1px solid ${T.border}`,
+          borderRadius: 10,
           padding: 28,
           width: "100%",
-          maxWidth: wide ? 780 : 540,
+          maxWidth: wide ? 800 : 520,
           maxHeight: "90vh",
           overflowY: "auto",
+          boxShadow: "0 8px 40px rgba(0,0,0,0.10)",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div
           style={{
@@ -276,7 +329,13 @@ const Modal = ({ open, onClose, title, children, wide = false }) => {
           }}
         >
           <h3
-            style={{ margin: 0, color: C.text, fontSize: 17, fontWeight: 800 }}
+            style={{
+              margin: 0,
+              color: T.black,
+              fontSize: 14,
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+            }}
           >
             {title}
           </h3>
@@ -285,12 +344,14 @@ const Modal = ({ open, onClose, title, children, wide = false }) => {
             style={{
               background: "none",
               border: "none",
-              color: C.muted,
+              color: T.gray,
               cursor: "pointer",
-              fontSize: 22,
+              fontSize: 20,
+              lineHeight: 1,
+              padding: 4,
             }}
           >
-            ×
+            &times;
           </button>
         </div>
         {children}
@@ -299,6 +360,7 @@ const Modal = ({ open, onClose, title, children, wide = false }) => {
   );
 };
 
+// ─── Toasts ───────────────────────────────────────────────────
 const Toast = ({ toasts }) => (
   <div
     style={{
@@ -315,18 +377,15 @@ const Toast = ({ toasts }) => (
       <div
         key={t.id}
         style={{
-          background:
-            t.type === "success"
-              ? C.green
-              : t.type === "error"
-                ? C.red
-                : C.accent,
-          color: "#fff",
-          padding: "10px 18px",
-          borderRadius: 10,
-          fontSize: 13,
+          background: t.type === "error" ? T.red : T.black,
+          color: T.white,
+          padding: "10px 16px",
+          borderRadius: 6,
+          fontSize: 12,
           fontWeight: 600,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+          letterSpacing: "0.01em",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+          animation: "fadeIn .2s ease",
         }}
       >
         {t.message}
@@ -335,55 +394,71 @@ const Toast = ({ toasts }) => (
   </div>
 );
 
-// ─── Composant : Carte articles d'une ligne ──────────────────
+// ─── Articles d'une ligne (accordeon) ────────────────────────
 function LigneArticles({ ligne }) {
   const [open, setOpen] = useState(false);
-  const itemsJson = ligne.itemsJson;
   const allItems = ligne.order?.OrderItems || [];
-
-  const itemsAffich =
-    itemsJson?.length > 0
-      ? itemsJson.map((ij) => {
-          const orig = allItems.find((i) => i.id === ij.orderItemId);
+  // Dans itemsAffich (useMemo), remplacer le .map existant :
+  const itemsAffich = useMemo(() => {
+    if (ligne.itemsJson?.length > 0) {
+      return ligne.itemsJson.map((ij) => {
+        if (ij.libre) {
           return {
-            sku: orig?.sku || "—",
-            nom: orig?.productName || `Article #${ij.orderItemId}`,
+            sku: ij.sku || "—",
+            nom: ij.nom || `Produit #${ij.produitId}`,
             quantite: ij.quantitePlanifiee,
-            quantiteOriginale: orig?.quantity,
-            unit: orig?.unit || "u",
-            famille: orig?.produit?.famille,
-            partiel: orig && ij.quantitePlanifiee < orig.quantity,
-            poids: orig?.produit?.poidsKg
-              ? Math.round(orig.produit.poidsKg * ij.quantitePlanifiee * 10) /
-                10
+            unit: "u",
+            famille: ij.famille,
+            libre: true,
+            partiel: false,
+            poids: ij.produit?.poidsKg
+              ? Math.round(ij.produit.poidsKg * ij.quantitePlanifiee * 10) / 10
               : null,
           };
-        })
-      : allItems.map((i) => ({
-          sku: i.sku || "—",
-          nom: i.productName,
-          quantite: i.quantity,
-          unit: i.unit || "u",
-          famille: i.produit?.famille,
-          partiel: false,
-          poids: i.produit?.poidsKg
-            ? Math.round(i.produit.poidsKg * i.quantity * 10) / 10
+        }
+        const orig = allItems.find((i) => i.id === ij.orderItemId);
+        return {
+          sku: orig?.sku || "—",
+          nom: orig?.productName || `Article #${ij.orderItemId}`,
+          quantite: ij.quantitePlanifiee,
+          quantiteOriginale: orig?.quantity,
+          unit: orig?.unit || "u",
+          famille: orig?.produit?.famille,
+          partiel: orig && ij.quantitePlanifiee < orig.quantity,
+          libre: false,
+          poids: orig?.produit?.poidsKg
+            ? Math.round(orig.produit.poidsKg * ij.quantitePlanifiee * 10) / 10
             : null,
-        }));
+        };
+      });
+    }
+    return allItems.map((i) => ({
+      sku: i.sku || "—",
+      nom: i.productName,
+      quantite: i.quantity,
+      unit: i.unit || "u",
+      famille: i.produit?.famille,
+      partiel: false,
+      libre: false,
+      poids: i.produit?.poidsKg
+        ? Math.round(i.produit.poidsKg * i.quantity * 10) / 10
+        : null,
+    }));
+  }, [ligne, allItems]);
 
   const totalQte = itemsAffich.reduce((s, i) => s + (i.quantite || 0), 0);
-  const totalPoids = calcLignePoids(ligne);
-  const totalPalettes = calcLignePalettes(ligne);
+  const totalPoids = useMemo(() => calcLignePoids(ligne), [ligne]);
+  const totalPlt = useMemo(() => calcLignePalettes(ligne), [ligne]);
 
   return (
     <div>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((o) => !o)}
         style={{
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: C.accent,
+          color: T.black,
           fontSize: 12,
           fontWeight: 600,
           padding: 0,
@@ -394,33 +469,40 @@ function LigneArticles({ ligne }) {
       >
         <span
           style={{
-            transform: open ? "rotate(90deg)" : "none",
+            fontSize: 9,
+            color: T.gray,
             display: "inline-block",
+            transform: open ? "rotate(90deg)" : "none",
             transition: ".2s",
           }}
         >
-          ▶
+          &#9654;
         </span>
-        {itemsAffich.length} article{itemsAffich.length > 1 ? "s" : ""} ·{" "}
-        {totalQte.toLocaleString()} u
+        <span>
+          {itemsAffich.length} article{itemsAffich.length > 1 ? "s" : ""}
+        </span>
+        <span style={{ color: T.gray, fontWeight: 400 }}>
+          &mdash; {totalQte.toLocaleString("fr-DZ")} u
+        </span>
         {totalPoids > 0 && (
-          <span style={{ color: C.muted }}>· {totalPoids.toFixed(0)} kg</span>
+          <span style={{ color: T.grayLight }}>{totalPoids.toFixed(0)} kg</span>
         )}
-        {totalPalettes > 0 && (
-          <span style={{ color: C.muted }}>· {totalPalettes} plt</span>
+        {totalPlt > 0 && (
+          <span style={{ color: T.grayLight }}>{totalPlt} plt</span>
         )}
-        {itemsJson?.length > 0 && (
+        {ligne.itemsJson?.length > 0 && (
           <span
             style={{
-              fontSize: 10,
+              fontSize: 9,
               padding: "1px 6px",
-              borderRadius: 10,
-              background: C.purpleLo,
-              color: C.purple,
+              borderRadius: 3,
+              background: T.orangeLight,
+              color: T.orange,
               fontWeight: 700,
+              border: `1px solid ${T.orangeBorder}`,
             }}
           >
-            SÉLECTION PLANIF
+            SELECTION PLANIF
           </span>
         )}
       </button>
@@ -428,131 +510,159 @@ function LigneArticles({ ligne }) {
       {open && (
         <div
           style={{
-            marginTop: 10,
+            marginTop: 8,
             display: "flex",
             flexDirection: "column",
-            gap: 4,
+            gap: 3,
           }}
         >
-          {itemsAffich.map((item, i) => {
-            const famColor = FAMILLE_COLOR[item.famille] || C.muted;
-            return (
-              <div
-                key={i}
+          {itemsAffich.map((item, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 10px",
+                background: T.bg,
+                borderRadius: 4,
+                borderLeft: `2px solid ${FAMILLE_COLOR[item.famille] || T.gray}`,
+              }}
+            >
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "6px 10px",
-                  background: C.bg,
-                  borderRadius: 6,
-                  borderLeft: `2px solid ${famColor}`,
+                  fontFamily: "monospace",
+                  fontSize: 10,
+                  color: T.grayLight,
+                  minWidth: 80,
                 }}
               >
+                {item.sku}
+              </span>
+              <span style={{ flex: 1, fontSize: 12, color: T.black }}>
+                {item.nom}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.black }}>
+                {item.quantite} {item.unit}
+              </span>
+              {item.poids && (
+                <span style={{ fontSize: 11, color: T.grayLight }}>
+                  {item.poids} kg
+                </span>
+              )}
+              {item.partiel && (
                 <span
                   style={{
-                    fontFamily: "monospace",
-                    fontSize: 11,
-                    color: C.muted,
-                    minWidth: 80,
+                    fontSize: 10,
+                    padding: "1px 6px",
+                    borderRadius: 3,
+                    background: T.orangeLight,
+                    color: T.orange,
+                    fontWeight: 700,
                   }}
                 >
-                  {item.sku}
+                  /{item.quantiteOriginale}
                 </span>
-                <span style={{ flex: 1, fontSize: 12, color: C.text }}>
-                  {item.nom}
+              )}
+              {item.libre && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: "1px 6px",
+                    borderRadius: 3,
+                    background: T.blueLight,
+                    color: T.blue,
+                    fontWeight: 700,
+                    border: `1px solid ${T.blueBorder}`,
+                  }}
+                >
+                  LIBRE
                 </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
-                  {item.quantite} {item.unit}
-                </span>
-                {item.poids && (
-                  <span style={{ fontSize: 11, color: C.muted }}>
-                    {item.poids} kg
-                  </span>
-                )}
-                {item.partiel && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      padding: "1px 6px",
-                      borderRadius: 8,
-                      background: C.orangeLo,
-                      color: C.orange,
-                      fontWeight: 700,
-                    }}
-                  >
-                    /{item.quantiteOriginale}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Composant : Indicateur remplissage camion ───────────────
+// ─── Indicateur chargement camion ────────────────────────────
 function CamionIndicator({ lignes }) {
-  const poidsTotal = lignes.reduce((s, l) => s + calcLignePoids(l), 0);
-  const palettesTotal = lignes.reduce((s, l) => s + calcLignePalettes(l), 0);
+  const poidsTotal = useMemo(
+    () => lignes.reduce((s, l) => s + calcLignePoids(l), 0),
+    [lignes],
+  );
+  const palettesTotal = useMemo(
+    () => lignes.reduce((s, l) => s + calcLignePalettes(l), 0),
+    [lignes],
+  );
   const taux = Math.min(100, Math.round((poidsTotal / POIDS_CAMION) * 100));
   const nbCamions = Math.ceil(poidsTotal / POIDS_CAMION) || 1;
-  const couleur = taux >= 85 ? C.green : taux >= 50 ? C.orange : C.red;
+  const couleur = taux >= 85 ? T.green : taux >= 50 ? T.orange : T.red;
+  const couleurBg =
+    taux >= 85 ? T.greenLight : taux >= 50 ? T.orangeLight : T.redLight;
 
   return (
     <div
       style={{
-        background: C.bg,
-        borderRadius: 10,
+        background: T.bg,
+        borderRadius: 8,
         padding: "14px 16px",
-        border: `1px solid ${C.border}`,
+        border: `1px solid ${T.border}`,
       }}
     >
       <div
         style={{
-          fontSize: 11,
-          color: C.muted,
+          fontSize: 10,
+          color: T.gray,
           fontWeight: 700,
           textTransform: "uppercase",
           letterSpacing: "0.08em",
           marginBottom: 12,
         }}
       >
-        CHARGEMENT ESTIMÉ
+        Chargement estime
       </div>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1fr",
-          gap: 10,
+          gridTemplateColumns: "repeat(4,1fr)",
+          gap: 8,
           marginBottom: 12,
         }}
       >
         {[
-          { lbl: "Poids", val: `${poidsTotal.toFixed(0)} kg`, color: C.text },
-          { lbl: "Palettes", val: `${palettesTotal} plt`, color: C.text },
-          { lbl: "Camions 24T", val: nbCamions, color: couleur },
-          { lbl: "Taux remplissage", val: `${taux}%`, color: couleur },
+          { lbl: "Poids", val: `${poidsTotal.toFixed(0)} kg`, accent: false },
+          { lbl: "Palettes", val: `${palettesTotal} plt`, accent: false },
+          { lbl: "Camions 24T", val: nbCamions, accent: true },
+          { lbl: "Remplissage", val: `${taux}%`, accent: true },
         ].map((s) => (
           <div
             key={s.lbl}
             style={{
               textAlign: "center",
-              padding: "8px",
-              background: C.surface,
-              borderRadius: 8,
+              padding: 10,
+              background: s.accent ? couleurBg : T.surface,
+              borderRadius: 6,
+              border: `1px solid ${s.accent ? couleur + "40" : T.border}`,
             }}
           >
-            <div style={{ fontSize: 16, fontWeight: 800, color: s.color }}>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                color: s.accent ? couleur : T.black,
+                lineHeight: 1.2,
+              }}
+            >
               {s.val}
             </div>
             <div
               style={{
                 fontSize: 10,
-                color: C.muted,
-                marginTop: 2,
+                color: T.grayLight,
+                marginTop: 3,
                 textTransform: "uppercase",
                 letterSpacing: "0.06em",
               }}
@@ -564,28 +674,16 @@ function CamionIndicator({ lignes }) {
       </div>
       <div
         style={{
-          marginBottom: 4,
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 11,
-          color: C.muted,
-        }}
-      >
-        <span>Capacité camion 24T</span>
-        <span style={{ color: couleur, fontWeight: 700 }}>{taux}%</span>
-      </div>
-      <div
-        style={{
-          height: 8,
-          background: C.border,
-          borderRadius: 4,
+          height: 5,
+          background: T.border,
+          borderRadius: 3,
           overflow: "hidden",
         }}
       >
         <div
           style={{
             height: "100%",
-            borderRadius: 4,
+            borderRadius: 3,
             width: `${taux}%`,
             background: couleur,
             transition: "width .5s ease",
@@ -593,37 +691,40 @@ function CamionIndicator({ lignes }) {
         />
       </div>
       {taux < 50 && poidsTotal > 0 && (
-        <div style={{ marginTop: 8, fontSize: 11, color: C.orange }}>
-          ⚠ Chargement partiel — envisager de regrouper avec d'autres lignes
+        <div style={{ marginTop: 8, fontSize: 11, color: T.orange }}>
+          Chargement partiel — envisager de regrouper avec d'autres lignes
         </div>
       )}
       {taux >= 85 && (
-        <div style={{ marginTop: 8, fontSize: 11, color: C.green }}>
-          ✓ Chargement optimal
+        <div style={{ marginTop: 8, fontSize: 11, color: T.green }}>
+          Chargement optimal
         </div>
       )}
     </div>
   );
 }
 
-// ─── Composant : Stepper statut ──────────────────────────────
+// ─── Stepper statut — logique corrigee ───────────────────────
 function StatutStepper({ statut }) {
   const steps = [
-    { key: "CREE", label: "Créé", icon: "📋" },
-    { key: "EN_ROUTE", label: "En route", icon: "🚛" },
-    { key: "LIVRE", label: "Livré", icon: "✅" },
+    { key: "CREE", label: "Cree" },
+    { key: "EN_ROUTE", label: "En route" },
+    { key: "LIVRE", label: "Livre" },
   ];
-  const currentStep = STATUT[statut]?.step || 1;
   const isIncident = statut === "INCIDENT";
+  // CREE=1, EN_ROUTE ou INCIDENT=2, LIVRE=3
+  const currentStep = STATUT[statut]?.step ?? 1;
 
   return (
-    <div
-      style={{ display: "flex", alignItems: "center", gap: 0, marginTop: 16 }}
-    >
+    <div style={{ display: "flex", alignItems: "center", marginTop: 18 }}>
       {steps.map((step, i) => {
-        const done = currentStep > step.step || step.key === statut;
-        const active =
+        const stepNum = i + 1;
+        const done = currentStep >= stepNum;
+        const isActiveStep =
           step.key === statut || (isIncident && step.key === "EN_ROUTE");
+        const dotColor =
+          isIncident && isActiveStep ? T.red : done ? T.green : T.borderMid;
+
         return (
           <div
             key={step.key}
@@ -638,47 +739,51 @@ function StatutStepper({ statut }) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 4,
+                gap: 5,
               }}
             >
               <div
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 26,
+                  height: 26,
                   borderRadius: "50%",
-                  background:
-                    isIncident && active ? C.red : done ? C.green : C.border,
+                  background: done ? dotColor : T.white,
+                  border: `2px solid ${dotColor}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 16,
-                  border: active
-                    ? `2px solid ${isIncident ? C.red : C.green}`
-                    : "none",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: done ? T.white : T.grayLight,
                   transition: "all .3s",
                 }}
               >
-                {isIncident && active ? "⚠️" : done ? step.icon : "○"}
+                {isIncident && isActiveStep ? "!" : stepNum}
               </div>
               <div
                 style={{
                   fontSize: 10,
-                  color: done ? C.text : C.muted,
-                  fontWeight: done ? 700 : 400,
                   whiteSpace: "nowrap",
+                  letterSpacing: "0.03em",
+                  color: done
+                    ? isIncident && isActiveStep
+                      ? T.red
+                      : T.black
+                    : T.grayLight,
+                  fontWeight: done ? 600 : 400,
                 }}
               >
-                {step.label}
+                {isIncident && isActiveStep ? "Incident" : step.label}
               </div>
             </div>
             {i < steps.length - 1 && (
               <div
                 style={{
                   flex: 1,
-                  height: 2,
+                  height: 1,
                   margin: "0 8px",
-                  background: currentStep > i + 1 ? C.green : C.border,
-                  marginBottom: 20,
+                  marginBottom: 18,
+                  background: currentStep > stepNum ? T.green : T.border,
                   transition: "background .3s",
                 }}
               />
@@ -695,19 +800,25 @@ function StatutStepper({ statut }) {
 // ════════════════════════════════════════════════════════════════
 export default function TransportWorkflow() {
   const { toasts, push } = useToast();
+  const ordresCache = useRef({});
 
+  // ── State ─────────────────────────────────────────────────
   const [ordres, setOrdres] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [selectedOrdre, setSelected] = useState(null);
   const [view, setView] = useState("liste");
   const [loading, setLoading] = useState(true);
   const [filtreStatut, setFiltreStatut] = useState("ALL");
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
+  // modaux
   const [modalCreer, setModalCreer] = useState(false);
   const [modalAffecter, setModalAffecter] = useState(false);
   const [modalSuivi, setModalSuivi] = useState(false);
   const [modalConfirmer, setModalConfirmer] = useState(false);
+  const [modalDemarrer, setModalDemarrer] = useState(false);
 
+  // formulaires
   const [formCreer, setFormCreer] = useState({
     sessionId: "",
     lignesPlanifIds: [],
@@ -728,35 +839,40 @@ export default function TransportWorkflow() {
     position: "",
     commentaire: "",
   });
-  const [sessionLignes, setSessionLignes] = useState([]);
 
-  // ── Load ──────────────────────────────────────────────────
+  const [sessionLignes, setSessionLignes] = useState([]);
+  const [clrConflict, setClrConflict] = useState(false);
+
+  // ── Chargement ordres — tout cote client, pas de double filtre API ──
   const loadOrdres = useCallback(async () => {
+    setLoading(true);
     try {
-      const params = filtreStatut !== "ALL" ? { statut: filtreStatut } : {};
-      const { data } = await api.get("/transport/ordres", { params });
+      const { data } = await api.get("/transport/ordres");
       setOrdres(data);
     } catch {
-      push("Erreur chargement", "error");
+      push("Erreur lors du chargement des ordres", "error");
     } finally {
       setLoading(false);
     }
-  }, [filtreStatut]);
+  }, [push]);
 
+  // ── Chargement sessions avec cache ────────────────────────
   const loadSessions = useCallback(async () => {
+    if (sessionsLoaded) return;
     try {
       const { data } = await api.get("/transport/sessions-disponibles");
       setSessions(data);
-    } catch {}
-  }, []);
+      setSessionsLoaded(true);
+    } catch {
+      push("Erreur lors du chargement des sessions", "error");
+    }
+  }, [sessionsLoaded, push]);
 
   useEffect(() => {
     loadOrdres();
   }, [loadOrdres]);
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
 
+  // Mise a jour des lignes quand la session change
   useEffect(() => {
     if (!formCreer.sessionId) {
       setSessionLignes([]);
@@ -767,22 +883,66 @@ export default function TransportWorkflow() {
     );
     setSessionLignes(sess?.lignes || []);
     setFormCreer((p) => ({ ...p, lignesPlanifIds: [] }));
-  }, [formCreer.sessionId]);
+    setClrConflict(false);
+  }, [formCreer.sessionId, sessions]);
 
-  // ── Actions ──────────────────────────────────────────────
-  const openDetail = async (ordre) => {
-    try {
-      const { data } = await api.get(`/transport/ordres/${ordre.id}`);
-      setSelected(data);
-      setView("detail");
-    } catch {
-      push("Erreur chargement détail", "error");
-    }
-  };
+  // ── Detail avec cache ordres ───────────────────────────────
+  const openDetail = useCallback(
+    async (ordre, forceRefresh = false) => {
+      if (!forceRefresh && ordresCache.current[ordre.id]) {
+        setSelected(ordresCache.current[ordre.id]);
+        setView("detail");
+        return;
+      }
+      try {
+        const { data } = await api.get(`/transport/ordres/${ordre.id}`);
+        ordresCache.current[ordre.id] = data;
+        setSelected(data);
+        setView("detail");
+      } catch {
+        push("Erreur lors du chargement du detail", "error");
+      }
+    },
+    [push],
+  );
 
+  const refreshDetail = useCallback(async () => {
+    if (!selectedOrdre) return;
+    await openDetail(selectedOrdre, true);
+  }, [selectedOrdre, openDetail]);
+
+  const invalidateCache = useCallback((id) => {
+    delete ordresCache.current[id];
+  }, []);
+
+  // ── Toggle ligne + validation CLR ─────────────────────────
+  const toggleLigne = useCallback(
+    (id) => {
+      setFormCreer((prev) => {
+        const newIds = prev.lignesPlanifIds.includes(id)
+          ? prev.lignesPlanifIds.filter((x) => x !== id)
+          : [...prev.lignesPlanifIds, id];
+
+        const selected = sessionLignes.filter((l) => newIds.includes(l.id));
+        const clrIds = [
+          ...new Set(selected.map(getClrIdFromLigne).filter(Boolean)),
+        ];
+        setClrConflict(clrIds.length > 1);
+
+        return { ...prev, lignesPlanifIds: newIds };
+      });
+    },
+    [sessionLignes],
+  );
+
+  // ── Actions API ───────────────────────────────────────────
   const handleCreer = async () => {
     if (!formCreer.sessionId || formCreer.lignesPlanifIds.length === 0) {
-      push("Sélectionnez une session et au moins une ligne", "error");
+      push("Selectionnez une session et au moins une ligne", "error");
+      return;
+    }
+    if (clrConflict) {
+      push("Toutes les lignes doivent avoir le meme CLR destination", "error");
       return;
     }
     try {
@@ -794,7 +954,7 @@ export default function TransportWorkflow() {
         dateArriveePrevue: formCreer.dateArriveePrevue || undefined,
         notes: formCreer.notes || undefined,
       });
-      push("Ordre créé ✓", "success");
+      push("Ordre de transport cree", "success");
       setModalCreer(false);
       setFormCreer({
         sessionId: "",
@@ -804,35 +964,43 @@ export default function TransportWorkflow() {
         dateArriveePrevue: "",
         notes: "",
       });
+      setSessionsLoaded(false);
       loadOrdres();
-      loadSessions();
     } catch (e) {
-      push(e.response?.data?.message || "Erreur", "error");
+      push(e.response?.data?.message || "Erreur lors de la creation", "error");
     }
   };
 
   const handleAffecter = async () => {
+    if (!formAffecter.prestataire || !formAffecter.vehicule) {
+      push("Prestataire et vehicule sont requis", "error");
+      return;
+    }
     try {
       await api.patch(
         `/transport/ordres/${selectedOrdre.id}/affecter`,
         formAffecter,
       );
-      push("Prestataire affecté ✓", "success");
+      push("Prestataire affecte", "success");
       setModalAffecter(false);
-      openDetail(selectedOrdre);
+      invalidateCache(selectedOrdre.id);
+      await refreshDetail();
       loadOrdres();
     } catch (e) {
       push(e.response?.data?.message || "Erreur", "error");
     }
   };
 
+  // Demarrer — passe par modale de confirmation (point 7 corrige)
   const handleDemarrer = async () => {
     try {
       await api.patch(`/transport/ordres/${selectedOrdre.id}/demarrer`, {
-        commentaire: "Départ confirmé",
+        commentaire: "Depart confirme",
       });
-      push("Livraison démarrée 🚛", "success");
-      openDetail(selectedOrdre);
+      push("Livraison demarree", "success");
+      setModalDemarrer(false);
+      invalidateCache(selectedOrdre.id);
+      await refreshDetail();
       loadOrdres();
     } catch (e) {
       push(e.response?.data?.message || "Erreur", "error");
@@ -842,10 +1010,11 @@ export default function TransportWorkflow() {
   const handleSuivi = async () => {
     try {
       await api.post(`/transport/ordres/${selectedOrdre.id}/suivi`, formSuivi);
-      push("Suivi ajouté ✓", "success");
+      push("Evenement de suivi ajoute", "success");
       setModalSuivi(false);
       setFormSuivi({ statut: "", position: "", commentaire: "" });
-      openDetail(selectedOrdre);
+      invalidateCache(selectedOrdre.id);
+      await refreshDetail();
     } catch (e) {
       push(e.response?.data?.message || "Erreur", "error");
     }
@@ -857,26 +1026,19 @@ export default function TransportWorkflow() {
         `/transport/ordres/${selectedOrdre.id}/confirmer`,
       );
       push(
-        `✅ Livraison confirmée — ${data.updated} produit(s) mis à jour`,
+        `Livraison confirmee — ${data.updated} produit(s) mis a jour`,
         "success",
       );
       setModalConfirmer(false);
-      openDetail(selectedOrdre);
+      invalidateCache(selectedOrdre.id);
+      await refreshDetail();
       loadOrdres();
     } catch (e) {
       push(e.response?.data?.message || "Erreur", "error");
     }
   };
 
-  const toggleLigne = (id) =>
-    setFormCreer((p) => ({
-      ...p,
-      lignesPlanifIds: p.lignesPlanifIds.includes(id)
-        ? p.lignesPlanifIds.filter((x) => x !== id)
-        : [...p.lignesPlanifIds, id],
-    }));
-
-  // ── Helpers ───────────────────────────────────────────────
+  // ── Helpers date ──────────────────────────────────────────
   const fmt = (d) =>
     d
       ? new Date(d).toLocaleDateString("fr-DZ", {
@@ -894,60 +1056,66 @@ export default function TransportWorkflow() {
           minute: "2-digit",
         })
       : "—";
-  const ordresFiltres = ordres.filter(
-    (o) => filtreStatut === "ALL" || o.statut === filtreStatut,
+
+  // ── Filtre cote client uniquement ─────────────────────────
+  const ordresFiltres = useMemo(
+    () =>
+      ordres.filter((o) => filtreStatut === "ALL" || o.statut === filtreStatut),
+    [ordres, filtreStatut],
   );
 
   // ════════════════════════════════════════════════════════════
-  // RENDER LISTE
+  // RENDER — VUE LISTE
   // ════════════════════════════════════════════════════════════
   const renderListe = () => (
     <div>
-      {/* Header */}
+      {/* En-tete page */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-end",
           marginBottom: 32,
+          paddingBottom: 22,
+          borderBottom: `1px solid ${T.border}`,
         }}
       >
         <div>
           <div
             style={{
-              fontSize: 12,
-              color: C.accent,
+              fontSize: 10,
+              color: T.grayLight,
               fontWeight: 700,
-              letterSpacing: "0.15em",
+              letterSpacing: "0.12em",
               textTransform: "uppercase",
-              marginBottom: 6,
+              marginBottom: 5,
             }}
           >
-            MODULE ACTIF
+            Transport
           </div>
           <h1
             style={{
               margin: 0,
-              fontSize: 28,
-              fontWeight: 900,
-              color: C.text,
-              letterSpacing: "-0.02em",
+              fontSize: 22,
+              fontWeight: 800,
+              color: T.black,
+              letterSpacing: "-0.025em",
             }}
           >
-            TRANSPORT <span style={{ color: C.accent }}>WORKFLOW</span>
+            Gestion des ordres de transport
           </h1>
-          <p style={{ margin: "6px 0 0", color: C.muted, fontSize: 13 }}>
-            Ordres de transport · Suivi livraisons · Confirmation stock
+          <p style={{ margin: "4px 0 0", color: T.grayLight, fontSize: 13 }}>
+            Planification, suivi des livraisons et confirmation de stock
           </p>
         </div>
         <Btn
+          size="lg"
           onClick={() => {
             loadSessions();
             setModalCreer(true);
           }}
-          size="lg"
         >
-          + Nouvel ordre
+          Nouvel ordre
         </Btn>
       </div>
 
@@ -955,44 +1123,45 @@ export default function TransportWorkflow() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 28,
+          gridTemplateColumns: "repeat(4,1fr)",
+          gap: 10,
+          marginBottom: 24,
         }}
       >
         {Object.entries(STATUT).map(([s, cfg]) => {
           const count = ordres.filter((o) => o.statut === s).length;
+          const active = filtreStatut === s;
           return (
             <div
               key={s}
-              onClick={() => setFiltreStatut(filtreStatut === s ? "ALL" : s)}
+              onClick={() => setFiltreStatut(active ? "ALL" : s)}
               style={{
-                background: filtreStatut === s ? cfg.bg : C.card,
-                border: `1px solid ${filtreStatut === s ? cfg.color + "50" : C.border}`,
-                borderRadius: 12,
-                padding: "18px 20px",
+                background: active ? cfg.bg : T.white,
+                border: `1px solid ${active ? cfg.border : T.border}`,
+                borderTop: `3px solid ${cfg.color}`,
+                borderRadius: 8,
+                padding: "15px 18px",
                 cursor: "pointer",
-                borderLeft: `4px solid ${cfg.color}`,
-                transition: "all .2s",
+                transition: "all .15s",
               }}
             >
               <div
                 style={{
-                  fontSize: 11,
-                  color: C.muted,
+                  fontSize: 10,
+                  color: T.gray,
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   marginBottom: 8,
                 }}
               >
-                {cfg.icon} {cfg.label}
+                {cfg.label}
               </div>
               <div
                 style={{
                   fontSize: 28,
                   fontWeight: 900,
-                  color: cfg.color,
+                  color: active ? cfg.color : T.black,
                   lineHeight: 1,
                 }}
               >
@@ -1003,169 +1172,206 @@ export default function TransportWorkflow() {
         })}
       </div>
 
-      {/* Filtres pills */}
+      {/* Filtres rapides */}
       <div
-        style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}
+        style={{
+          display: "flex",
+          gap: 5,
+          marginBottom: 16,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
       >
         {[
-          ["ALL", "Tous les ordres"],
+          ["ALL", "Tous"],
           ...Object.entries(STATUT).map(([s, c]) => [s, c.label]),
         ].map(([val, label]) => (
           <button
             key={val}
             onClick={() => setFiltreStatut(val)}
             style={{
-              padding: "6px 16px",
-              borderRadius: 20,
-              fontSize: 12,
+              padding: "5px 13px",
+              borderRadius: 4,
+              fontSize: 11,
               fontWeight: 600,
               cursor: "pointer",
               fontFamily: "inherit",
-              transition: "all .15s",
-              background: filtreStatut === val ? C.accent : C.surface,
-              color: filtreStatut === val ? "#fff" : C.muted,
-              border: `1px solid ${filtreStatut === val ? C.accent : C.border}`,
+              transition: "all .12s",
+              background: filtreStatut === val ? T.black : "transparent",
+              color: filtreStatut === val ? T.white : T.gray,
+              border: `1px solid ${filtreStatut === val ? T.black : T.border}`,
             }}
           >
             {label}
           </button>
         ))}
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: 12,
-            color: C.muted,
-            alignSelf: "center",
-          }}
-        >
+        <span style={{ marginLeft: "auto", fontSize: 12, color: T.grayLight }}>
           {ordresFiltres.length} ordre{ordresFiltres.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Liste ordres */}
+      {/* Tableau */}
       {loading ? (
         <div
           style={{
             textAlign: "center",
             padding: 80,
-            color: C.muted,
-            fontSize: 14,
+            color: T.grayLight,
+            fontSize: 13,
           }}
         >
-          Chargement…
+          Chargement en cours...
         </div>
       ) : ordresFiltres.length === 0 ? (
         <div
           style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
+            background: T.white,
+            border: `1px solid ${T.border}`,
+            borderRadius: 10,
             textAlign: "center",
             padding: 60,
-            color: C.muted,
+            color: T.grayLight,
           }}
         >
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-            Aucun ordre
+          <div style={{ fontSize: 30, marginBottom: 12, color: T.borderMid }}>
+            —
           </div>
-          {sessions.length > 0 && (
-            <Btn onClick={() => setModalCreer(true)}>
-              Créer un premier ordre
-            </Btn>
-          )}
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: T.black,
+              marginBottom: 12,
+            }}
+          >
+            Aucun ordre
+            {filtreStatut !== "ALL"
+              ? ` avec le statut ${STATUT[filtreStatut]?.label}`
+              : ""}
+          </div>
+          <Btn
+            onClick={() => {
+              loadSessions();
+              setModalCreer(true);
+            }}
+          >
+            Creer un premier ordre
+          </Btn>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {ordresFiltres.map((ordre) => {
+        <div
+          style={{
+            border: `1px solid ${T.border}`,
+            borderRadius: 8,
+            overflow: "hidden",
+          }}
+        >
+          {/* Header tableau */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "60px 1fr 140px 150px 130px 24px",
+              gap: 16,
+              padding: "9px 20px",
+              background: T.bg,
+              fontSize: 10,
+              color: T.grayLight,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              borderBottom: `1px solid ${T.border}`,
+            }}
+          >
+            <span>Ordre</span>
+            <span>Session / Prestataire</span>
+            <span>Depart</span>
+            <span>Arrivee prevue</span>
+            <span>Statut</span>
+            <span />
+          </div>
+
+          {ordresFiltres.map((ordre, idx) => {
             const cfg = STATUT[ordre.statut] || {};
             return (
               <div
                 key={ordre.id}
                 onClick={() => openDetail(ordre)}
                 style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 12,
-                  padding: "16px 22px",
-                  cursor: "pointer",
                   display: "grid",
-                  gridTemplateColumns: "44px 1fr auto auto auto auto",
-                  alignItems: "center",
-                  gap: 18,
-                  borderLeft: `4px solid ${cfg.color || C.border}`,
-                  transition: "background .15s, border-color .15s",
+                  gridTemplateColumns: "60px 1fr 140px 150px 130px 24px",
+                  gap: 16,
+                  padding: "13px 20px",
+                  background: T.white,
+                  cursor: "pointer",
+                  borderBottom:
+                    idx < ordresFiltres.length - 1
+                      ? `1px solid ${T.border}`
+                      : "none",
+                  borderLeft: `3px solid ${cfg.color || T.border}`,
+                  transition: "background .1s",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#1a2035")
-                }
+                onMouseEnter={(e) => (e.currentTarget.style.background = T.bg)}
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = C.card)
+                  (e.currentTarget.style.background = T.white)
                 }
               >
-                <div style={{ fontSize: 26, textAlign: "center" }}>
-                  {cfg.icon}
+                <div style={{ fontWeight: 800, fontSize: 13, color: T.black }}>
+                  #{ordre.id}
                 </div>
                 <div>
                   <div
                     style={{
-                      fontWeight: 800,
-                      fontSize: 15,
-                      color: C.text,
-                      marginBottom: 3,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: T.black,
+                      marginBottom: 2,
                     }}
                   >
-                    Ordre #{ordre.id}
+                    Session #{ordre.sessionId}
+                    {ordre.clrId && (
+                      <span style={{ color: T.grayLight, fontWeight: 400 }}>
+                        &nbsp;&mdash; CLR #{ordre.clrId}
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{
-                      color: C.muted,
-                      fontSize: 12,
+                      fontSize: 11,
+                      color: T.grayLight,
                       display: "flex",
-                      gap: 12,
-                      flexWrap: "wrap",
+                      gap: 10,
                     }}
                   >
-                    <span>Session #{ordre.sessionId}</span>
-                    {ordre.clrId && <span>CLR #{ordre.clrId}</span>}
-                    {ordre.prestataire && <span>🚚 {ordre.prestataire}</span>}
-                    {ordre.vehicule && <span>🚗 {ordre.vehicule}</span>}
+                    {ordre.prestataire && <span>{ordre.prestataire}</span>}
+                    {ordre.vehicule && <span>{ordre.vehicule}</span>}
                   </div>
                 </div>
-                <div style={{ textAlign: "center" }}>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: C.muted,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      marginBottom: 3,
-                    }}
-                  >
-                    Départ
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
-                    {fmt(ordre.dateDepart)}
-                  </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: ordre.dateDepart ? T.black : T.grayLight,
+                  }}
+                >
+                  {fmt(ordre.dateDepart)}
                 </div>
-                <div style={{ textAlign: "center" }}>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: C.muted,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      marginBottom: 3,
-                    }}
-                  >
-                    Prévu
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
-                    {fmt(ordre.dateArriveePrevue)}
-                  </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: ordre.dateArriveePrevue ? T.black : T.grayLight,
+                  }}
+                >
+                  {fmt(ordre.dateArriveePrevue)}
                 </div>
                 <Badge statut={ordre.statut} />
-                <div style={{ color: C.muted, fontSize: 18 }}>›</div>
+                <div
+                  style={{
+                    color: T.grayLight,
+                    fontSize: 14,
+                    textAlign: "right",
+                  }}
+                >
+                  ›
+                </div>
               </div>
             );
           })}
@@ -1175,37 +1381,33 @@ export default function TransportWorkflow() {
   );
 
   // ════════════════════════════════════════════════════════════
-  // RENDER DETAIL
+  // RENDER — VUE DETAIL
   // ════════════════════════════════════════════════════════════
   const renderDetail = () => {
     if (!selectedOrdre) return null;
     const cfg = STATUT[selectedOrdre.statut] || {};
     const lignes = selectedOrdre.lignesPlanif || [];
+
     const canAffecter = selectedOrdre.statut === "CREE";
     const canDemarrer =
       selectedOrdre.statut === "CREE" &&
-      selectedOrdre.prestataire &&
-      selectedOrdre.vehicule;
+      !!selectedOrdre.prestataire &&
+      !!selectedOrdre.vehicule;
     const canSuivi = !["LIVRE"].includes(selectedOrdre.statut);
     const canConfirmer = selectedOrdre.statut === "EN_ROUTE";
 
-    const poidsTotal = lignes.reduce((s, l) => s + calcLignePoids(l), 0);
-    const palettesTotal = lignes.reduce((s, l) => s + calcLignePalettes(l), 0);
-    const taux = Math.min(100, Math.round((poidsTotal / POIDS_CAMION) * 100));
-    const tauxColor = taux >= 85 ? C.green : taux >= 50 ? C.orange : C.red;
-
     return (
       <div>
-        {/* Back */}
+        {/* Fil d'ariane / retour */}
         <button
           onClick={() => setView("liste")}
           style={{
             background: "none",
             border: "none",
-            color: C.accent,
+            color: T.gray,
             cursor: "pointer",
-            fontSize: 13,
-            marginBottom: 24,
+            fontSize: 12,
+            marginBottom: 22,
             padding: 0,
             fontFamily: "inherit",
             display: "flex",
@@ -1214,18 +1416,18 @@ export default function TransportWorkflow() {
             fontWeight: 600,
           }}
         >
-          ← Retour aux ordres
+          &larr; Retour aux ordres
         </button>
 
-        {/* Header carte */}
+        {/* Header carte detail */}
         <div
           style={{
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
+            background: T.white,
+            border: `1px solid ${T.border}`,
+            borderRadius: 10,
             padding: 24,
             marginBottom: 20,
-            borderLeft: `5px solid ${cfg.color}`,
+            borderTop: `3px solid ${cfg.color || T.border}`,
           }}
         >
           <div
@@ -1242,16 +1444,17 @@ export default function TransportWorkflow() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
+                  gap: 10,
                   marginBottom: 6,
                 }}
               >
                 <h2
                   style={{
                     margin: 0,
-                    fontSize: 24,
+                    fontSize: 19,
                     fontWeight: 900,
-                    color: C.text,
+                    color: T.black,
+                    letterSpacing: "-0.02em",
                   }}
                 >
                   Ordre #{selectedOrdre.id}
@@ -1260,30 +1463,28 @@ export default function TransportWorkflow() {
               </div>
               <div
                 style={{
-                  color: C.muted,
-                  fontSize: 13,
+                  color: T.grayLight,
+                  fontSize: 12,
                   display: "flex",
-                  gap: 20,
+                  gap: 14,
                   flexWrap: "wrap",
                 }}
               >
-                <span>📅 Session #{selectedOrdre.sessionId}</span>
+                <span>Session #{selectedOrdre.sessionId}</span>
                 {selectedOrdre.prestataire && (
-                  <span>🚚 {selectedOrdre.prestataire}</span>
+                  <span>{selectedOrdre.prestataire}</span>
                 )}
                 {selectedOrdre.vehicule && (
-                  <span>🚗 {selectedOrdre.vehicule}</span>
+                  <span>{selectedOrdre.vehicule}</span>
                 )}
                 {selectedOrdre.capaciteChargee && (
-                  <span>📦 {selectedOrdre.capaciteChargee} palettes</span>
+                  <span>{selectedOrdre.capaciteChargee} palettes</span>
                 )}
               </div>
-
-              {/* Stepper */}
               <StatutStepper statut={selectedOrdre.statut} />
             </div>
 
-            {/* Actions */}
+            {/* Actions contextuelles */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {canAffecter && (
                 <Btn
@@ -1299,22 +1500,22 @@ export default function TransportWorkflow() {
                     setModalAffecter(true);
                   }}
                 >
-                  ✏️ Affecter
+                  Affecter
                 </Btn>
               )}
               {canDemarrer && (
-                <Btn variant="warning" onClick={handleDemarrer}>
-                  🚛 Démarrer
+                <Btn variant="outline" onClick={() => setModalDemarrer(true)}>
+                  Demarrer la livraison
                 </Btn>
               )}
               {canSuivi && (
                 <Btn variant="ghost" onClick={() => setModalSuivi(true)}>
-                  📍 Suivi
+                  Ajouter suivi
                 </Btn>
               )}
               {canConfirmer && (
                 <Btn variant="success" onClick={() => setModalConfirmer(true)}>
-                  ✅ Confirmer livraison
+                  Confirmer livraison
                 </Btn>
               )}
             </div>
@@ -1327,20 +1528,20 @@ export default function TransportWorkflow() {
               gridTemplateColumns: "repeat(3,1fr)",
               gap: 16,
               marginTop: 20,
-              paddingTop: 20,
-              borderTop: `1px solid ${C.border}`,
+              paddingTop: 18,
+              borderTop: `1px solid ${T.border}`,
             }}
           >
             {[
-              ["Départ", fmt(selectedOrdre.dateDepart)],
-              ["Arrivée prévue", fmt(selectedOrdre.dateArriveePrevue)],
-              ["Livraison réelle", fmt(selectedOrdre.dateLivraisonReelle)],
+              ["Depart", fmt(selectedOrdre.dateDepart)],
+              ["Arrivee prevue", fmt(selectedOrdre.dateArriveePrevue)],
+              ["Livraison reelle", fmt(selectedOrdre.dateLivraisonReelle)],
             ].map(([label, val]) => (
               <div key={label}>
                 <div
                   style={{
                     fontSize: 10,
-                    color: C.muted,
+                    color: T.grayLight,
                     fontWeight: 700,
                     marginBottom: 4,
                     textTransform: "uppercase",
@@ -1351,9 +1552,9 @@ export default function TransportWorkflow() {
                 </div>
                 <div
                   style={{
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: 700,
-                    color: val === "—" ? C.muted : C.text,
+                    color: val === "—" ? T.grayLight : T.black,
                   }}
                 >
                   {val}
@@ -1363,37 +1564,37 @@ export default function TransportWorkflow() {
           </div>
         </div>
 
-        {/* Grille contenu */}
+        {/* Corps 2 colonnes */}
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}
+          style={{ display: "grid", gridTemplateColumns: "1fr 310px", gap: 20 }}
         >
-          {/* Lignes planification */}
+          {/* Colonne principale — lignes */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Indicateur camion global */}
             {lignes.length > 0 && <CamionIndicator lignes={lignes} />}
 
             <div
               style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
+                background: T.white,
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
                 padding: 20,
               }}
             >
               <h3
                 style={{
                   margin: "0 0 16px",
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: 800,
-                  color: C.text,
+                  color: T.black,
+                  letterSpacing: "-0.01em",
                 }}
               >
-                📋 Lignes de planification
+                Lignes de planification
                 <span
                   style={{
                     marginLeft: 8,
                     fontSize: 12,
-                    color: C.muted,
+                    color: T.grayLight,
                     fontWeight: 400,
                   }}
                 >
@@ -1403,39 +1604,39 @@ export default function TransportWorkflow() {
 
               {lignes.length === 0 ? (
                 <div
-                  style={{ textAlign: "center", padding: 30, color: C.muted }}
+                  style={{
+                    textAlign: "center",
+                    padding: 30,
+                    color: T.grayLight,
+                    fontSize: 13,
+                  }}
                 >
-                  Aucune ligne
+                  Aucune ligne associee
                 </div>
               ) : (
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 12 }}
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
                 >
                   {lignes.map((ligne) => {
                     const poids = calcLignePoids(ligne);
                     const palettes = calcLignePalettes(ligne);
-                    const tauxLigne = Math.min(
+                    const tauxL = Math.min(
                       100,
                       Math.round((poids / POIDS_CAMION) * 100),
                     );
                     const tColor =
-                      tauxLigne >= 85
-                        ? C.green
-                        : tauxLigne >= 50
-                          ? C.orange
-                          : C.red;
+                      tauxL >= 85 ? T.green : tauxL >= 50 ? T.orange : T.red;
 
                     return (
                       <div
                         key={ligne.id}
                         style={{
-                          background: C.bg,
-                          borderRadius: 10,
-                          padding: "14px 16px",
-                          border: `1px solid ${C.border}`,
+                          background: T.bg,
+                          borderRadius: 8,
+                          padding: "13px 15px",
+                          border: `1px solid ${T.border}`,
                         }}
                       >
-                        {/* Header ligne */}
                         <div
                           style={{
                             display: "flex",
@@ -1448,39 +1649,44 @@ export default function TransportWorkflow() {
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 10,
+                              gap: 7,
+                              flexWrap: "wrap",
                             }}
                           >
                             <span
                               style={{
                                 fontWeight: 800,
-                                fontSize: 14,
-                                color: C.text,
+                                fontSize: 13,
+                                color: T.black,
                               }}
                             >
                               {ligne.order?.orderNumber || `Ligne #${ligne.id}`}
                             </span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                padding: "2px 8px",
-                                borderRadius: 8,
-                                fontWeight: 700,
-                                background: C.accentLo,
-                                color: C.accent,
-                              }}
-                            >
-                              {ligne.diapason}
-                            </span>
+                            {ligne.diapason && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: "1px 7px",
+                                  borderRadius: 3,
+                                  fontWeight: 700,
+                                  background: T.blueLight,
+                                  color: T.blue,
+                                  border: `1px solid ${T.blueBorder}`,
+                                }}
+                              >
+                                {ligne.diapason}
+                              </span>
+                            )}
                             {ligne.clr && (
                               <span
                                 style={{
-                                  fontSize: 11,
-                                  padding: "2px 8px",
-                                  borderRadius: 8,
-                                  fontWeight: 700,
-                                  background: C.purpleLo,
-                                  color: C.purple,
+                                  fontSize: 10,
+                                  padding: "1px 7px",
+                                  borderRadius: 3,
+                                  fontWeight: 600,
+                                  background: T.bg,
+                                  color: T.gray,
+                                  border: `1px solid ${T.border}`,
                                 }}
                               >
                                 {ligne.clr.code} — {ligne.clr.nom}
@@ -1492,21 +1698,20 @@ export default function TransportWorkflow() {
                               display: "flex",
                               gap: 10,
                               fontSize: 12,
-                              color: C.muted,
+                              color: T.grayLight,
                             }}
                           >
-                            {poids > 0 && <span>⚖ {poids.toFixed(0)} kg</span>}
-                            {palettes > 0 && <span>📦 {palettes} plt</span>}
+                            {poids > 0 && <span>{poids.toFixed(0)} kg</span>}
+                            {palettes > 0 && <span>{palettes} plt</span>}
                           </div>
                         </div>
 
-                        {/* Barre remplissage ligne */}
                         {poids > 0 && (
                           <div style={{ marginBottom: 10 }}>
                             <div
                               style={{
-                                height: 4,
-                                background: C.border,
+                                height: 3,
+                                background: T.border,
                                 borderRadius: 2,
                                 overflow: "hidden",
                               }}
@@ -1514,7 +1719,7 @@ export default function TransportWorkflow() {
                               <div
                                 style={{
                                   height: "100%",
-                                  width: `${tauxLigne}%`,
+                                  width: `${tauxL}%`,
                                   background: tColor,
                                   borderRadius: 2,
                                 }}
@@ -1528,12 +1733,10 @@ export default function TransportWorkflow() {
                                 marginTop: 3,
                               }}
                             >
-                              {tauxLigne}% capacité camion
+                              {tauxL}% capacite camion
                             </div>
                           </div>
                         )}
-
-                        {/* Articles */}
                         <LigneArticles ligne={ligne} />
                       </div>
                     );
@@ -1543,55 +1746,54 @@ export default function TransportWorkflow() {
             </div>
           </div>
 
-          {/* Colonne droite : suivi + infos */}
+          {/* Colonne droite — CLR + suivi */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Infos CLR destination */}
             {lignes[0]?.clr && (
               <div
                 style={{
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 14,
+                  background: T.white,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 10,
                   padding: 18,
                 }}
               >
                 <div
                   style={{
-                    fontSize: 11,
-                    color: C.muted,
+                    fontSize: 10,
+                    color: T.grayLight,
                     fontWeight: 700,
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
                     marginBottom: 10,
                   }}
                 >
-                  CLR DESTINATION
+                  CLR Destination
                 </div>
                 <div
                   style={{
                     fontSize: 18,
                     fontWeight: 900,
-                    color: C.accent,
-                    marginBottom: 4,
+                    color: T.black,
+                    marginBottom: 2,
                   }}
                 >
                   {lignes[0].clr.code}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.black }}>
                   {lignes[0].clr.nom}
                 </div>
-                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-                  {lignes[0].clr.wilaya} · {lignes[0].clr.region}
+                <div style={{ fontSize: 12, color: T.grayLight, marginTop: 4 }}>
+                  {lignes[0].clr.wilaya} &middot; {lignes[0].clr.region}
                 </div>
               </div>
             )}
 
-            {/* Historique suivi */}
+            {/* Timeline suivi */}
             <div
               style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
+                background: T.white,
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
                 padding: 18,
                 flex: 1,
               }}
@@ -1599,42 +1801,42 @@ export default function TransportWorkflow() {
               <h3
                 style={{
                   margin: "0 0 16px",
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 800,
-                  color: C.text,
+                  color: T.black,
                 }}
               >
-                📍 Historique suivi
+                Historique de suivi
               </h3>
               {(selectedOrdre.suivis || []).length === 0 ? (
                 <div
                   style={{
                     textAlign: "center",
                     padding: 24,
-                    color: C.muted,
+                    color: T.grayLight,
                     fontSize: 13,
                   }}
                 >
-                  Aucun événement
+                  Aucun evenement enregistre
                 </div>
               ) : (
                 <div style={{ position: "relative" }}>
                   <div
                     style={{
                       position: "absolute",
-                      left: 11,
+                      left: 10,
                       top: 0,
                       bottom: 0,
-                      width: 2,
-                      background: C.border,
+                      width: 1,
+                      background: T.border,
                     }}
                   />
                   <div
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      gap: 14,
-                      paddingLeft: 30,
+                      gap: 16,
+                      paddingLeft: 26,
                     }}
                   >
                     {[...selectedOrdre.suivis].reverse().map((s) => {
@@ -1644,19 +1846,20 @@ export default function TransportWorkflow() {
                           <div
                             style={{
                               position: "absolute",
-                              left: -23,
+                              left: -19,
                               top: 3,
-                              width: 12,
-                              height: 12,
+                              width: 10,
+                              height: 10,
                               borderRadius: "50%",
-                              background: sc.color || C.muted,
-                              border: `2px solid ${C.bg}`,
+                              background: sc.color || T.grayLight,
+                              border: `2px solid ${T.white}`,
+                              outline: `1px solid ${sc.color || T.grayLight}`,
                             }}
                           />
                           <div
                             style={{
                               fontSize: 10,
-                              color: C.muted,
+                              color: T.grayLight,
                               marginBottom: 2,
                             }}
                           >
@@ -1666,18 +1869,24 @@ export default function TransportWorkflow() {
                             style={{
                               fontWeight: 700,
                               fontSize: 12,
-                              color: sc.color || C.text,
+                              color: sc.color || T.black,
                             }}
                           >
-                            {sc.icon} {sc.label || s.statut}
+                            {sc.label || s.statut}
                           </div>
                           {s.position && (
-                            <div style={{ fontSize: 11, color: C.muted }}>
-                              📍 {s.position}
+                            <div style={{ fontSize: 11, color: T.grayLight }}>
+                              {s.position}
                             </div>
                           )}
                           {s.commentaire && (
-                            <div style={{ fontSize: 12, color: C.soft }}>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: T.gray,
+                                marginTop: 2,
+                              }}
+                            >
                               {s.commentaire}
                             </div>
                           )}
@@ -1695,35 +1904,89 @@ export default function TransportWorkflow() {
   };
 
   // ════════════════════════════════════════════════════════════
-  // RENDER PRINCIPAL
+  // RENDU PRINCIPAL
   // ════════════════════════════════════════════════════════════
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily: "'Inter','Segoe UI',sans-serif",
+        background: T.bg,
+        color: T.black,
+        fontFamily: "'DM Sans','Geist','Segoe UI',sans-serif",
         fontSize: 14,
       }}
     >
       <style>{`
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #1e2538; border-radius: 3px; }
-        select { background: #0a0d14; border: 1px solid #1e2538; border-radius: 8px; padding: 9px 12px; color: #e2e8f0; font-size: 13px; width: 100%; font-family: inherit; cursor: pointer; }
-        select:focus { outline: none; border-color: #3b82f6; }
-        textarea { background: #0a0d14; border: 1px solid #1e2538; border-radius: 8px; padding: 9px 12px; color: #e2e8f0; font-size: 13px; width: 100%; font-family: inherit; resize: vertical; min-height: 80px; }
-        textarea:focus { outline: none; border-color: #3b82f6; }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800;900&display=swap');
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        * { box-sizing: border-box; margin: 0; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-thumb { background: ${T.borderMid}; border-radius: 2px; }
+        select, textarea {
+          background: ${T.white}; border: 1px solid ${T.border}; border-radius: 6px;
+          padding: 8px 11px; color: ${T.black}; font-size: 13px;
+          width: 100%; font-family: inherit; outline: none; transition: border-color .15s;
+        }
+        select:focus, textarea:focus { border-color: ${T.black}; }
+        textarea { resize: vertical; min-height: 80px; }
+        input[type="checkbox"] { accent-color: ${T.black}; }
       `}</style>
 
       <Toast toasts={toasts} />
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
+
+      {/* Nav top */}
+      <div
+        style={{
+          background: T.white,
+          borderBottom: `1px solid ${T.border}`,
+          padding: "0 32px",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1240,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            height: 50,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              color: T.black,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            ERP Logistique
+          </span>
+          <span style={{ margin: "0 12px", color: T.border, fontSize: 16 }}>
+            |
+          </span>
+          <span style={{ fontSize: 12, color: T.gray, fontWeight: 500 }}>
+            Transport
+          </span>
+          {view === "detail" && selectedOrdre && (
+            <>
+              <span style={{ margin: "0 8px", color: T.grayLight }}>/</span>
+              <span style={{ fontSize: 12, color: T.black, fontWeight: 600 }}>
+                Ordre #{selectedOrdre.id}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 24px" }}>
         {view === "liste" && renderListe()}
         {view === "detail" && renderDetail()}
       </div>
 
-      {/* ── Modal Créer ──────────────────────────────────────── */}
+      {/* ── Modal Creer ── */}
       <Modal
         open={modalCreer}
         onClose={() => setModalCreer(false)}
@@ -1731,28 +1994,14 @@ export default function TransportWorkflow() {
         wide
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {/* Session */}
-          <div>
-            <label
-              style={{
-                fontSize: 11,
-                color: C.muted,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                display: "block",
-                marginBottom: 6,
-              }}
-            >
-              SESSION DE PLANIFICATION <span style={{ color: C.red }}>*</span>
-            </label>
+          <Field label="Session de planification" required>
             <select
               value={formCreer.sessionId}
               onChange={(e) =>
                 setFormCreer((p) => ({ ...p, sessionId: e.target.value }))
               }
             >
-              <option value="">— Choisir une session —</option>
+              <option value="">Choisir une session</option>
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>
                   Session #{s.id} — {s.date} ({s.lignes?.length || 0} ligne
@@ -1760,43 +2009,59 @@ export default function TransportWorkflow() {
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
 
-          {/* Lignes */}
           {sessionLignes.length > 0 && (
             <div>
-              <label
+              <div
                 style={{
-                  fontSize: 11,
-                  color: C.muted,
+                  fontSize: 10,
+                  color: T.gray,
                   fontWeight: 700,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  display: "block",
                   marginBottom: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
                 }}
               >
-                LIGNES À INCLURE <span style={{ color: C.red }}>*</span>
+                Lignes a inclure <span style={{ color: T.red }}>*</span>
                 <span
                   style={{
-                    color: C.muted,
+                    color: T.grayLight,
                     fontWeight: 400,
                     textTransform: "none",
+                    fontSize: 11,
                   }}
                 >
-                  {" "}
-                  — même CLR obligatoire
+                  — meme CLR obligatoire
                 </span>
-              </label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              </div>
+
+              {clrConflict && (
+                <div
+                  style={{
+                    marginBottom: 10,
+                    padding: "9px 12px",
+                    background: T.redLight,
+                    border: `1px solid ${T.redBorder}`,
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: T.red,
+                    fontWeight: 600,
+                  }}
+                >
+                  Les lignes selectionnees ont des CLR differents — regroupement
+                  impossible.
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {sessionLignes.map((ligne) => {
                   const checked = formCreer.lignesPlanifIds.includes(ligne.id);
                   const poids = calcLignePoids(ligne);
                   const palettes = calcLignePalettes(ligne);
-                  const items =
-                    ligne.itemsJson?.length > 0
-                      ? ligne.itemsJson
-                      : ligne.order?.OrderItems || [];
                   const totalQte =
                     ligne.itemsJson?.length > 0
                       ? ligne.itemsJson.reduce(
@@ -1807,6 +2072,10 @@ export default function TransportWorkflow() {
                           (s, i) => s + (i.quantity || 0),
                           0,
                         );
+                  const itemCount =
+                    ligne.itemsJson?.length > 0
+                      ? ligne.itemsJson.length
+                      : (ligne.order?.OrderItems || []).length;
 
                   return (
                     <label
@@ -1816,62 +2085,63 @@ export default function TransportWorkflow() {
                         alignItems: "flex-start",
                         gap: 12,
                         cursor: "pointer",
-                        background: checked ? C.accentLo : C.bg,
-                        padding: "12px 14px",
-                        borderRadius: 10,
-                        border: `1px solid ${checked ? C.accent : C.border}`,
-                        transition: "all .15s",
+                        background: checked ? T.bg : T.white,
+                        padding: "11px 13px",
+                        borderRadius: 7,
+                        border: `1px solid ${checked ? T.black : T.border}`,
+                        transition: "all .12s",
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleLigne(ligne.id)}
-                        style={{
-                          accentColor: C.accent,
-                          marginTop: 2,
-                          flexShrink: 0,
-                        }}
+                        style={{ marginTop: 2, flexShrink: 0 }}
                       />
                       <div style={{ flex: 1 }}>
                         <div
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 8,
-                            marginBottom: 4,
+                            gap: 7,
+                            marginBottom: 3,
+                            flexWrap: "wrap",
                           }}
                         >
                           <span
                             style={{
                               fontWeight: 700,
                               fontSize: 13,
-                              color: C.text,
+                              color: T.black,
                             }}
                           >
                             {ligne.order?.orderNumber || `Ligne #${ligne.id}`}
                           </span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              padding: "1px 7px",
-                              borderRadius: 8,
-                              background: C.accentLo,
-                              color: C.accent,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {ligne.diapason}
-                          </span>
+                          {ligne.diapason && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                padding: "1px 6px",
+                                borderRadius: 3,
+                                background: T.blueLight,
+                                color: T.blue,
+                                fontWeight: 700,
+                                border: `1px solid ${T.blueBorder}`,
+                              }}
+                            >
+                              {ligne.diapason}
+                            </span>
+                          )}
                           {ligne.clr && (
                             <span
                               style={{
-                                fontSize: 11,
-                                padding: "1px 7px",
-                                borderRadius: 8,
-                                background: C.purpleLo,
-                                color: C.purple,
-                                fontWeight: 700,
+                                fontSize: 10,
+                                padding: "1px 6px",
+                                borderRadius: 3,
+                                background: T.bg,
+                                color: T.gray,
+                                fontWeight: 600,
+                                border: `1px solid ${T.border}`,
                               }}
                             >
                               {ligne.clr.code} — {ligne.clr.nom}
@@ -1880,32 +2150,33 @@ export default function TransportWorkflow() {
                           {ligne.itemsJson?.length > 0 && (
                             <span
                               style={{
-                                fontSize: 10,
+                                fontSize: 9,
                                 padding: "1px 6px",
-                                borderRadius: 8,
-                                background: C.orangeLo,
-                                color: C.orange,
+                                borderRadius: 3,
+                                background: T.orangeLight,
+                                color: T.orange,
                                 fontWeight: 700,
+                                border: `1px solid ${T.orangeBorder}`,
                               }}
                             >
-                              SÉLECTION PLANIF
+                              SELECTION PLANIF
                             </span>
                           )}
                         </div>
                         <div
                           style={{
                             fontSize: 11,
-                            color: C.muted,
+                            color: T.grayLight,
                             display: "flex",
-                            gap: 12,
+                            gap: 10,
                           }}
                         >
                           <span>
-                            {items.length} article
-                            {items.length !== 1 ? "s" : ""} · {totalQte} u
+                            {itemCount} article{itemCount !== 1 ? "s" : ""}{" "}
+                            &middot; {totalQte.toLocaleString("fr-DZ")} u
                           </span>
-                          {poids > 0 && <span>⚖ {poids.toFixed(0)} kg</span>}
-                          {palettes > 0 && <span>📦 {palettes} plt</span>}
+                          {poids > 0 && <span>{poids.toFixed(0)} kg</span>}
+                          {palettes > 0 && <span>{palettes} plt</span>}
                         </div>
                       </div>
                     </label>
@@ -1913,8 +2184,7 @@ export default function TransportWorkflow() {
                 })}
               </div>
 
-              {/* Indicateur camion dans le modal */}
-              {formCreer.lignesPlanifIds.length > 0 && (
+              {formCreer.lignesPlanifIds.length > 0 && !clrConflict && (
                 <div style={{ marginTop: 12 }}>
                   <CamionIndicator
                     lignes={sessionLignes.filter((l) =>
@@ -1929,88 +2199,86 @@ export default function TransportWorkflow() {
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            <Input
+            <Field
               label="Prestataire"
               value={formCreer.prestataire}
               onChange={(v) => setFormCreer((p) => ({ ...p, prestataire: v }))}
-              placeholder="Nom transporteur"
+              placeholder="Nom du transporteur"
             />
-            <Input
-              label="Véhicule"
+            <Field
+              label="Vehicule"
               value={formCreer.vehicule}
               onChange={(v) => setFormCreer((p) => ({ ...p, vehicule: v }))}
               placeholder="Immatriculation"
             />
           </div>
-          <Input
-            label="Date d'arrivée prévue"
+          <Field
+            label="Date d'arrivee prevue"
             type="datetime-local"
             value={formCreer.dateArriveePrevue}
             onChange={(v) =>
               setFormCreer((p) => ({ ...p, dateArriveePrevue: v }))
             }
           />
-          <div>
-            <label
-              style={{
-                fontSize: 11,
-                color: C.muted,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                display: "block",
-                marginBottom: 6,
-              }}
-            >
-              NOTES
-            </label>
+          <Field label="Notes">
             <textarea
               value={formCreer.notes}
               onChange={(e) =>
                 setFormCreer((p) => ({ ...p, notes: e.target.value }))
               }
-              placeholder="Notes optionnelles…"
+              placeholder="Notes optionnelles..."
             />
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          </Field>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              paddingTop: 8,
+              borderTop: `1px solid ${T.border}`,
+            }}
+          >
             <Btn variant="ghost" onClick={() => setModalCreer(false)}>
               Annuler
             </Btn>
             <Btn
               onClick={handleCreer}
               disabled={
-                !formCreer.sessionId || formCreer.lignesPlanifIds.length === 0
+                !formCreer.sessionId ||
+                formCreer.lignesPlanifIds.length === 0 ||
+                clrConflict
               }
             >
-              Créer l'ordre
+              Creer l'ordre
             </Btn>
           </div>
         </div>
       </Modal>
 
-      {/* ── Modal Affecter ───────────────────────────────────── */}
+      {/* ── Modal Affecter ── */}
       <Modal
         open={modalAffecter}
         onClose={() => setModalAffecter(false)}
-        title="Affecter prestataire & véhicule"
+        title="Affecter prestataire et vehicule"
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Input
+          <Field
             label="Prestataire"
             required
             value={formAffecter.prestataire}
             onChange={(v) => setFormAffecter((p) => ({ ...p, prestataire: v }))}
             placeholder="Nom du transporteur"
           />
-          <Input
-            label="Véhicule"
+          <Field
+            label="Vehicule"
             required
             value={formAffecter.vehicule}
             onChange={(v) => setFormAffecter((p) => ({ ...p, vehicule: v }))}
             placeholder="Immatriculation"
           />
-          <Input
-            label="Capacité chargée (palettes)"
+          <Field
+            label="Capacite chargee (palettes)"
             type="number"
             value={formAffecter.capaciteChargee}
             onChange={(v) =>
@@ -2020,16 +2288,16 @@ export default function TransportWorkflow() {
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            <Input
-              label="Date départ"
+            <Field
+              label="Date de depart"
               type="datetime-local"
               value={formAffecter.dateDepart}
               onChange={(v) =>
                 setFormAffecter((p) => ({ ...p, dateDepart: v }))
               }
             />
-            <Input
-              label="Arrivée prévue"
+            <Field
+              label="Arrivee prevue"
               type="datetime-local"
               value={formAffecter.dateArriveePrevue}
               onChange={(v) =>
@@ -2037,7 +2305,15 @@ export default function TransportWorkflow() {
               }
             />
           </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              paddingTop: 8,
+              borderTop: `1px solid ${T.border}`,
+            }}
+          >
             <Btn variant="ghost" onClick={() => setModalAffecter(false)}>
               Annuler
             </Btn>
@@ -2051,27 +2327,14 @@ export default function TransportWorkflow() {
         </div>
       </Modal>
 
-      {/* ── Modal Suivi ──────────────────────────────────────── */}
+      {/* ── Modal Suivi ── */}
       <Modal
         open={modalSuivi}
         onClose={() => setModalSuivi(false)}
-        title="Ajouter un événement de suivi"
+        title="Ajouter un evenement de suivi"
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <label
-              style={{
-                fontSize: 11,
-                color: C.muted,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                display: "block",
-                marginBottom: 6,
-              }}
-            >
-              STATUT (optionnel)
-            </label>
+          <Field label="Changement de statut (optionnel)">
             <select
               value={formSuivi.statut}
               onChange={(e) =>
@@ -2079,39 +2342,34 @@ export default function TransportWorkflow() {
               }
             >
               <option value="">Pas de changement de statut</option>
-              <option value="EN_ROUTE">🚛 En route</option>
-              <option value="INCIDENT">⚠️ Incident</option>
+              <option value="EN_ROUTE">En route</option>
+              <option value="INCIDENT">Incident</option>
             </select>
-          </div>
-          <Input
+          </Field>
+          <Field
             label="Position"
             value={formSuivi.position}
             onChange={(v) => setFormSuivi((p) => ({ ...p, position: v }))}
-            placeholder="Ex: Sétif, RN5…"
+            placeholder="Ex : Setif, RN5..."
           />
-          <div>
-            <label
-              style={{
-                fontSize: 11,
-                color: C.muted,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                display: "block",
-                marginBottom: 6,
-              }}
-            >
-              COMMENTAIRE
-            </label>
+          <Field label="Commentaire">
             <textarea
               value={formSuivi.commentaire}
               onChange={(e) =>
                 setFormSuivi((p) => ({ ...p, commentaire: e.target.value }))
               }
-              placeholder="Description de l'événement…"
+              placeholder="Description de l'evenement..."
             />
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          </Field>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              paddingTop: 8,
+              borderTop: `1px solid ${T.border}`,
+            }}
+          >
             <Btn variant="ghost" onClick={() => setModalSuivi(false)}>
               Annuler
             </Btn>
@@ -2120,7 +2378,57 @@ export default function TransportWorkflow() {
         </div>
       </Modal>
 
-      {/* ── Modal Confirmer ──────────────────────────────────── */}
+      {/* ── Modal Demarrer (confirmation explicite — point 7) ── */}
+      <Modal
+        open={modalDemarrer}
+        onClose={() => setModalDemarrer(false)}
+        title="Demarrer la livraison"
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div
+            style={{
+              background: T.bg,
+              borderRadius: 8,
+              padding: "14px 16px",
+              fontSize: 13,
+              color: T.gray,
+              lineHeight: 1.75,
+              border: `1px solid ${T.border}`,
+            }}
+          >
+            Cette action va passer l'ordre{" "}
+            <strong style={{ color: T.black }}>#{selectedOrdre?.id}</strong> en
+            statut <strong style={{ color: T.orange }}>En route</strong>.
+            <br />
+            Prestataire :{" "}
+            <strong style={{ color: T.black }}>
+              {selectedOrdre?.prestataire}
+            </strong>
+            &nbsp;&mdash;&nbsp; Vehicule :{" "}
+            <strong style={{ color: T.black }}>
+              {selectedOrdre?.vehicule}
+            </strong>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              paddingTop: 8,
+              borderTop: `1px solid ${T.border}`,
+            }}
+          >
+            <Btn variant="ghost" onClick={() => setModalDemarrer(false)}>
+              Annuler
+            </Btn>
+            <Btn variant="warning" onClick={handleDemarrer}>
+              Confirmer le depart
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal Confirmer livraison ── */}
       <Modal
         open={modalConfirmer}
         onClose={() => setModalConfirmer(false)}
@@ -2129,33 +2437,41 @@ export default function TransportWorkflow() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div
             style={{
-              background: C.greenLo,
-              border: `1px solid ${C.green}30`,
-              borderRadius: 10,
-              padding: 16,
+              background: T.redLight,
+              border: `1px solid ${T.redBorder}`,
+              borderRadius: 8,
+              padding: "14px 16px",
             }}
           >
             <div
               style={{
-                fontWeight: 800,
-                color: C.green,
+                fontWeight: 700,
+                color: T.red,
                 marginBottom: 8,
-                fontSize: 14,
+                fontSize: 12,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
               }}
             >
-              ⚠️ Action irréversible
+              Action irreversible
             </div>
-            <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7 }}>
+            <div style={{ fontSize: 13, color: T.black, lineHeight: 1.75 }}>
               Cette action va :
-              <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+              <ul
+                style={{
+                  margin: "6px 0 0",
+                  paddingLeft: 18,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 3,
+                }}
+              >
                 <li>
-                  Passer l'ordre en statut <strong>LIVRÉ</strong>
+                  Passer l'ordre en statut <strong>Livre</strong>
                 </li>
+                <li>Mettre a jour le stock CLR destination</li>
                 <li>
-                  Mettre à jour le <strong>stock CLR</strong> destination
-                </li>
-                <li>
-                  Passer les commandes associées en <strong>delivered</strong>
+                  Passer les commandes associees en <strong>delivered</strong>
                 </li>
               </ul>
             </div>
@@ -2163,24 +2479,34 @@ export default function TransportWorkflow() {
           {selectedOrdre && (
             <div
               style={{
-                background: C.bg,
-                borderRadius: 8,
-                padding: "12px 14px",
+                background: T.bg,
+                borderRadius: 7,
+                padding: "10px 13px",
                 fontSize: 13,
-                color: C.muted,
+                color: T.gray,
+                border: `1px solid ${T.border}`,
               }}
             >
-              Ordre #{selectedOrdre.id} ·{" "}
-              {(selectedOrdre.lignesPlanif || []).length} ligne(s) · CLR #
-              {selectedOrdre.clrId}
+              Ordre #{selectedOrdre.id}
+              &nbsp;&middot;&nbsp;
+              {(selectedOrdre.lignesPlanif || []).length} ligne(s)
+              &nbsp;&middot;&nbsp; CLR #{selectedOrdre.clrId}
             </div>
           )}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+              paddingTop: 8,
+              borderTop: `1px solid ${T.border}`,
+            }}
+          >
             <Btn variant="ghost" onClick={() => setModalConfirmer(false)}>
               Annuler
             </Btn>
-            <Btn variant="success" onClick={handleConfirmer}>
-              ✅ Confirmer la livraison
+            <Btn variant="danger" onClick={handleConfirmer}>
+              Confirmer la livraison
             </Btn>
           </div>
         </div>

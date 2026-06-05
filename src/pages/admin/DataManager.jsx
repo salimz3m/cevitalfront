@@ -1,8 +1,8 @@
-// pages/admin/DataManager.jsx — Sprint 9
-// Gestion des données de base : Produits + Seuils + CLR + Plateformes
+// pages/admin/DataManager.jsx — Sprint 9 (redesign)
+// Gestion des données de base : Produits + CLR + Plateformes
 // Routes backend :
 //   GET/POST/PUT/DELETE /api/stock/produits
-//   GET/PUT/DELETE      /api/stock/seuils
+//   GET/POST/PUT/DELETE /api/stock/familles
 //   GET/POST/PUT/DELETE /api/infrastructure/clrs
 //   GET/POST/PUT        /api/infrastructure/plateformes
 
@@ -10,8 +10,8 @@ import { useState, useEffect } from "react";
 import api from "../../utils/api";
 import { useToast } from "../../context/ToastContext";
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-const FAMILLES = [
+// ─── Defaults ─────────────────────────────────────────────────
+const DEFAULT_FAMILLES = [
   "HUILE",
   "MARGARINE",
   "SUCRE",
@@ -25,35 +25,26 @@ const FAMILLES = [
   "PALETTE",
   "AUTRE",
 ];
+
 const REGIONS = ["EST", "CENTRE", "OUEST"];
-const FAMILLE_COLORS = {
-  HUILE: "#f59e0b",
-  MARGARINE: "#ec4899",
-  SUCRE: "#8b5cf6",
-  SMEN: "#f97316",
-  CHOCOLAT: "#ef4444",
-  SAUCE: "#22c55e",
-  EAU: "#3b82f6",
-  MIEL: "#eab308",
-  CONFITURE: "#d946ef",
-  BOISSON: "#10b981",
-  PALETTE: "#64748b",
-  AUTRE: "#6b7280",
-};
-const REGION_COLORS = { EST: "#ef4444", CENTRE: "#3b82f6", OUEST: "#10b981" };
+
+const REGION_COLORS = { EST: "#c0392b", CENTRE: "#1a1a2e", OUEST: "#2c3e50" };
+
 const EMPTY_PRODUIT = {
   sku: "",
   nom: "",
-  famille: "HUILE",
+  famille: "",
   marque: "",
-  unite: "carton",
-  qteParCarton: 1,
-  poidsKg: "",
+  uniteBase: "unité", // la plus petite unité logistique (ex: bouteille, sachet)
+  coefParBoite: 1, // unités dans une boite
+  coefBoiteParCarton: 1, // boites dans un carton
+  coefCartonParPalette: 1, // cartons dans une palette
+  poidsUnitaireKg: "", // poids d'une unité de base
   prixUnitaireDZD: 0,
-  qteParPalette: 50,
   description: "",
   actif: true,
 };
+
 const EMPTY_CLR = {
   code: "",
   nom: "",
@@ -64,53 +55,104 @@ const EMPTY_CLR = {
 };
 const EMPTY_PLF = { nom: "", ville: "", region: "EST", capacite: 1000 };
 
-// ─── Calculs automatiques conditionnement ─────────────────────────────────────
-function calculs(p) {
-  const poids = parseFloat(p.poidsKg) || 0;
-  const parCarton = parseFloat(p.qteParCarton) || 1;
-  const parPalette = parseFloat(p.qteParPalette) || 50;
-  const poidsCarton = poids * parCarton;
-  const poidsPalette = poidsCarton * parPalette;
+// ─── Calculs conditionnement ───────────────────────────────────
+function calcConditionnement(p) {
+  const pU = parseFloat(p.poidsUnitaireKg) || 0;
+  const cB = parseFloat(p.coefParBoite) || 1;
+  const cC = parseFloat(p.coefBoiteParCarton) || 1;
+  const cP = parseFloat(p.coefCartonParPalette) || 1;
+  const prix = parseFloat(p.prixUnitaireDZD) || 0;
+
+  const uniteParCarton = cB * cC;
+  const uniteParPalette = cB * cC * cP;
+
+  const poidsBoite = pU * cB;
+  const poidsCarton = poidsBoite * cC;
+  const poidsPalette = poidsCarton * cP;
+
+  const prixBoite = prix * cB;
+  const prixCarton = prixBoite * cC;
+  const prixPalette = prixCarton * cP;
+
   const cartonsParCamion =
     poidsCarton > 0 ? Math.floor(24000 / poidsCarton) : 0;
-  return { poidsCarton, poidsPalette, cartonsParCamion };
+
+  return {
+    uniteParCarton,
+    uniteParPalette,
+    poidsBoite,
+    poidsCarton,
+    poidsPalette,
+    prixBoite,
+    prixCarton,
+    prixPalette,
+    cartonsParCamion,
+  };
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Design System ─────────────────────────────────────────────
+const T = {
+  // Colors
+  white: "#ffffff",
+  offW: "#f7f7f5",
+  gray50: "#f2f2f0",
+  gray100: "#e8e8e5",
+  gray200: "#d0d0cc",
+  gray400: "#9a9a95",
+  gray600: "#5a5a55",
+  gray800: "#2a2a25",
+  black: "#0e0e0c",
+  red: "#c0392b",
+  redLight: "#f9eeee",
+  redMid: "#e8c4c0",
+};
+
 const S = {
   page: {
-    padding: "32px",
-    color: "#e5e7eb",
+    padding: "40px 48px",
+    color: T.gray800,
     minHeight: "100vh",
-    background: "#0f1117",
+    background: T.offW,
+    fontFamily: "'DM Sans', 'Helvetica Neue', Arial, sans-serif",
   },
-  header: { marginBottom: "32px" },
+  header: {
+    marginBottom: "40px",
+    borderBottom: `1px solid ${T.gray100}`,
+    paddingBottom: "24px",
+  },
   title: {
-    fontSize: "26px",
-    fontWeight: 800,
-    color: "#fff",
+    fontSize: "22px",
+    fontWeight: 700,
+    color: T.black,
     margin: 0,
-    letterSpacing: "-0.03em",
+    letterSpacing: "-0.02em",
   },
-  sub: { color: "#6b7280", marginTop: "6px", fontSize: "14px" },
+  sub: {
+    color: T.gray400,
+    marginTop: "4px",
+    fontSize: "13px",
+    fontWeight: 400,
+  },
 
   tabs: {
     display: "flex",
-    gap: "4px",
-    marginBottom: "28px",
-    borderBottom: "1px solid #1f2937",
+    gap: "0px",
+    marginBottom: "32px",
+    borderBottom: `1px solid ${T.gray100}`,
   },
   tab: (a) => ({
-    padding: "10px 20px",
-    fontSize: "13px",
+    padding: "10px 22px",
+    fontSize: "12px",
     fontWeight: 600,
     cursor: "pointer",
     border: "none",
     background: "transparent",
-    color: a ? "#3b82f6" : "#6b7280",
-    borderBottom: a ? "2px solid #3b82f6" : "2px solid transparent",
+    color: a ? T.black : T.gray400,
+    borderBottom: a ? `2px solid ${T.black}` : "2px solid transparent",
     marginBottom: "-1px",
-    transition: "all 0.15s",
+    transition: "all 0.12s",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
   }),
 
   toolbar: {
@@ -122,105 +164,107 @@ const S = {
     flexWrap: "wrap",
   },
   search: {
-    background: "#181c27",
-    border: "1px solid #2d3748",
-    borderRadius: "8px",
-    padding: "9px 14px",
-    color: "#fff",
+    background: T.white,
+    border: `1px solid ${T.gray200}`,
+    borderRadius: "4px",
+    padding: "9px 12px",
+    color: T.black,
     fontSize: "13px",
     outline: "none",
-    width: "260px",
+    width: "240px",
+    fontFamily: "inherit",
   },
 
   btnPrimary: {
-    background: "linear-gradient(135deg,#3b82f6,#6366f1)",
-    color: "#fff",
+    background: T.black,
+    color: T.white,
     border: "none",
-    borderRadius: "8px",
-    padding: "9px 18px",
-    fontWeight: 700,
-    cursor: "pointer",
-    fontSize: "13px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  btnSecondary: {
-    background: "transparent",
-    color: "#9ca3af",
-    border: "1px solid #2d3748",
-    borderRadius: "8px",
+    borderRadius: "4px",
     padding: "9px 18px",
     fontWeight: 600,
     cursor: "pointer",
-    fontSize: "13px",
+    fontSize: "12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+    transition: "background 0.12s",
+  },
+  btnSecondary: {
+    background: "transparent",
+    color: T.gray600,
+    border: `1px solid ${T.gray200}`,
+    borderRadius: "4px",
+    padding: "9px 18px",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontSize: "12px",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+    fontFamily: "inherit",
   },
   btnEdit: {
     background: "transparent",
-    color: "#3b82f6",
-    border: "1px solid #3b82f633",
-    borderRadius: "6px",
+    color: T.gray600,
+    border: `1px solid ${T.gray200}`,
+    borderRadius: "3px",
     padding: "5px 10px",
-    fontSize: "12px",
+    fontSize: "11px",
     cursor: "pointer",
+    transition: "all 0.1s",
   },
   btnDanger: {
     background: "transparent",
-    color: "#ef4444",
-    border: "1px solid #ef444433",
-    borderRadius: "6px",
+    color: T.red,
+    border: `1px solid ${T.redMid}`,
+    borderRadius: "3px",
     padding: "5px 10px",
-    fontSize: "12px",
+    fontSize: "11px",
     cursor: "pointer",
+  },
+  btnGhost: {
+    background: T.redLight,
+    color: T.red,
+    border: `1px solid ${T.redMid}`,
+    borderRadius: "4px",
+    padding: "9px 18px",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontSize: "12px",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+    fontFamily: "inherit",
   },
 
   card: {
-    background: "#181c27",
-    borderRadius: "12px",
-    border: "1px solid #2d3748",
+    background: T.white,
+    borderRadius: "6px",
+    border: `1px solid ${T.gray100}`,
     overflow: "hidden",
   },
   table: { width: "100%", borderCollapse: "collapse" },
   th: {
-    padding: "12px 16px",
+    padding: "11px 16px",
     textAlign: "left",
-    fontSize: "11px",
+    fontSize: "10px",
     fontWeight: 700,
-    color: "#6b7280",
+    color: T.gray400,
     textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    borderBottom: "1px solid #2d3748",
-    background: "#0f1117",
+    letterSpacing: "0.08em",
+    borderBottom: `1px solid ${T.gray100}`,
+    background: T.gray50,
   },
   td: {
     padding: "13px 16px",
     fontSize: "13px",
-    borderBottom: "1px solid #1f2937",
-  },
-
-  calcBox: {
-    background: "#0f1117",
-    borderRadius: "8px",
-    padding: "12px 16px",
-    marginTop: "8px",
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    gap: "12px",
-  },
-  calcItem: { textAlign: "center" },
-  calcVal: { fontSize: "18px", fontWeight: 800, color: "#3b82f6" },
-  calcLbl: {
-    fontSize: "10px",
-    color: "#6b7280",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginTop: "2px",
+    borderBottom: `1px solid ${T.gray50}`,
   },
 
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,0.75)",
+    background: "rgba(14,14,12,0.55)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -228,27 +272,51 @@ const S = {
     padding: "16px",
   },
   modal: {
-    background: "#181c27",
-    borderRadius: "16px",
-    border: "1px solid #2d3748",
-    padding: "28px",
+    background: T.white,
+    borderRadius: "8px",
+    border: `1px solid ${T.gray100}`,
+    padding: "32px",
     width: "100%",
-    maxWidth: "560px",
+    maxWidth: "620px",
     maxHeight: "90vh",
     overflowY: "auto",
+    boxShadow: "0 24px 80px rgba(0,0,0,0.12)",
   },
   modalTitle: {
-    fontSize: "18px",
+    fontSize: "16px",
     fontWeight: 700,
-    color: "#fff",
-    marginBottom: "24px",
+    color: T.black,
+    marginBottom: "28px",
+    letterSpacing: "-0.01em",
+    paddingBottom: "16px",
+    borderBottom: `1px solid ${T.gray100}`,
   },
-  formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" },
+  modalSection: {
+    fontSize: "10px",
+    color: T.gray400,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    margin: "20px 0 12px",
+    paddingBottom: "6px",
+    borderBottom: `1px solid ${T.gray100}`,
+  },
+  formGrid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" },
+  formGrid3: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: "14px",
+  },
+  formGrid4: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr 1fr",
+    gap: "14px",
+  },
   formGroup: { marginBottom: "14px" },
   label: {
     display: "block",
-    fontSize: "11px",
-    color: "#9ca3af",
+    fontSize: "10px",
+    color: T.gray600,
     fontWeight: 700,
     marginBottom: "6px",
     textTransform: "uppercase",
@@ -256,71 +324,119 @@ const S = {
   },
   input: {
     width: "100%",
-    background: "#0f1117",
-    border: "1px solid #2d3748",
-    borderRadius: "8px",
-    padding: "10px 12px",
-    color: "#fff",
+    background: T.white,
+    border: `1px solid ${T.gray200}`,
+    borderRadius: "4px",
+    padding: "9px 11px",
+    color: T.black,
     fontSize: "13px",
     outline: "none",
     boxSizing: "border-box",
+    fontFamily: "inherit",
+    transition: "border 0.1s",
   },
   select: {
     width: "100%",
-    background: "#0f1117",
-    border: "1px solid #2d3748",
-    borderRadius: "8px",
-    padding: "10px 12px",
-    color: "#fff",
+    background: T.white,
+    border: `1px solid ${T.gray200}`,
+    borderRadius: "4px",
+    padding: "9px 11px",
+    color: T.black,
     fontSize: "13px",
     outline: "none",
     boxSizing: "border-box",
+    fontFamily: "inherit",
   },
   modalActions: {
     display: "flex",
     gap: "10px",
     justifyContent: "flex-end",
-    marginTop: "24px",
+    marginTop: "28px",
+    paddingTop: "20px",
+    borderTop: `1px solid ${T.gray100}`,
+  },
+
+  calcGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "1px",
+    background: T.gray100,
+    border: `1px solid ${T.gray100}`,
+    borderRadius: "4px",
+    overflow: "hidden",
+    marginTop: "4px",
+  },
+  calcCell: { background: T.gray50, padding: "12px 14px" },
+  calcVal: { fontSize: "16px", fontWeight: 700, color: T.black, lineHeight: 1 },
+  calcSub: {
+    fontSize: "10px",
+    color: T.gray400,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginTop: "4px",
   },
 
   badge: (c) => ({
     display: "inline-block",
-    padding: "2px 10px",
-    borderRadius: "20px",
-    fontSize: "11px",
+    padding: "2px 8px",
+    borderRadius: "2px",
+    fontSize: "10px",
     fontWeight: 700,
-    background: c + "22",
+    background: c + "15",
     color: c,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
   }),
-  actifBadge: (a) => ({
+  redBadge: {
     display: "inline-block",
     padding: "2px 8px",
-    borderRadius: "20px",
-    fontSize: "11px",
+    borderRadius: "2px",
+    fontSize: "10px",
     fontWeight: 700,
-    background: a ? "#10b98122" : "#ef444422",
-    color: a ? "#10b981" : "#ef4444",
+    background: T.redLight,
+    color: T.red,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+  },
+  activeBadge: (a) => ({
+    display: "inline-block",
+    padding: "2px 8px",
+    borderRadius: "2px",
+    fontSize: "10px",
+    fontWeight: 700,
+    background: a ? "#edf7f0" : T.redLight,
+    color: a ? "#1a7a45" : T.red,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
   }),
   infoBox: {
-    background: "#0f1117",
-    borderRadius: "8px",
+    background: T.gray50,
+    borderRadius: "4px",
     padding: "10px 14px",
     fontSize: "12px",
-    color: "#6b7280",
+    color: T.gray600,
+    borderLeft: `3px solid ${T.gray200}`,
+  },
+  count: {
+    marginTop: "12px",
+    fontSize: "11px",
+    color: T.gray400,
+    letterSpacing: "0.03em",
   },
 };
 
 // ════════════════════════════════════════════════════════════════
-// MODALS
+// MODAL — Produit (nouveau système)
 // ════════════════════════════════════════════════════════════════
-
-function ProduitModal({ produit, onClose, onSaved }) {
+function ProduitModal({ produit, familles, onClose, onSaved }) {
   const { toast } = useToast();
   const [form, setForm] = useState(produit || EMPTY_PRODUIT);
   const [loading, setLoading] = useState(false);
   const isEdit = !!produit?.id;
-  const calc = calculs(form);
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
+  const calc = calcConditionnement(form);
+  const hasWeight = parseFloat(form.poidsUnitaireKg) > 0;
+  const hasPrice = parseFloat(form.prixUnitaireDZD) > 0;
 
   const handleSubmit = async () => {
     if (!form.sku || !form.nom || !form.famille)
@@ -344,14 +460,12 @@ function ProduitModal({ produit, onClose, onSaved }) {
     <div style={S.overlay} onClick={onClose}>
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
         <div style={S.modalTitle}>
-          <i
-            className="fa-solid fa-box"
-            style={{ color: "#3b82f6", marginRight: "10px" }}
-          />
-          {isEdit ? "Modifier" : "Nouveau produit"}
+          {isEdit ? "Modifier le produit" : "Nouveau produit"}
         </div>
 
-        <div style={S.formGrid}>
+        {/* Identification */}
+        <div style={S.modalSection}>Identification</div>
+        <div style={S.formGrid2}>
           <div style={S.formGroup}>
             <label style={S.label}>SKU *</label>
             <input
@@ -368,17 +482,17 @@ function ProduitModal({ produit, onClose, onSaved }) {
               value={form.famille}
               onChange={set("famille")}
             >
-              {FAMILLES.map((f) => (
-                <option key={f} value={f}>
-                  {f}
+              <option value="">— Sélectionner —</option>
+              {familles.map((f) => (
+                <option key={f.code || f} value={f.code || f}>
+                  {f.nom || f}
                 </option>
               ))}
             </select>
           </div>
         </div>
-
         <div style={S.formGroup}>
-          <label style={S.label}>Nom complet *</label>
+          <label style={S.label}>Désignation complète *</label>
           <input
             style={S.input}
             value={form.nom}
@@ -386,8 +500,7 @@ function ProduitModal({ produit, onClose, onSaved }) {
             placeholder="Huile Fleurial Tournesol 1L"
           />
         </div>
-
-        <div style={S.formGrid}>
+        <div style={S.formGrid2}>
           <div style={S.formGroup}>
             <label style={S.label}>Marque</label>
             <input
@@ -398,61 +511,163 @@ function ProduitModal({ produit, onClose, onSaved }) {
             />
           </div>
           <div style={S.formGroup}>
-            <label style={S.label}>Unité de stock</label>
-            <select style={S.select} value={form.unite} onChange={set("unite")}>
-              {["carton", "sac", "pack", "unité", "palette"].map((u) => (
+            <label style={S.label}>Description</label>
+            <input
+              style={S.input}
+              value={form.description || ""}
+              onChange={set("description")}
+              placeholder="Optionnel"
+            />
+          </div>
+        </div>
+
+        {/* Nomenclature conditionnement */}
+        <div style={S.modalSection}>Nomenclature & conditionnement</div>
+        <div style={S.infoBox} style={{ ...S.infoBox, marginBottom: "14px" }}>
+          Définissez la hiérarchie logistique : unité de base, puis les
+          coefficients de groupage à chaque niveau. Toutes les valeurs dérivées
+          sont calculées automatiquement.
+        </div>
+
+        <div style={S.formGrid2}>
+          <div style={S.formGroup}>
+            <label style={S.label}>Unité de base</label>
+            <select
+              style={S.select}
+              value={form.uniteBase}
+              onChange={set("uniteBase")}
+            >
+              {[
+                "bouteille",
+                "sachet",
+                "boîte",
+                "bidon",
+                "unité",
+                "kg",
+                "litre",
+              ].map((u) => (
                 <option key={u} value={u}>
                   {u}
                 </option>
               ))}
             </select>
           </div>
-        </div>
-
-        <div
-          style={{
-            fontSize: "11px",
-            color: "#6b7280",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            margin: "4px 0 10px",
-          }}
-        >
-          Conditionnement
-        </div>
-        <div style={S.formGrid}>
-          <div style={S.formGroup}>
-            <label style={S.label}>Unités / carton</label>
-            <input
-              style={S.input}
-              type="number"
-              value={form.qteParCarton}
-              onChange={set("qteParCarton")}
-              min="1"
-            />
-          </div>
           <div style={S.formGroup}>
             <label style={S.label}>Poids unitaire (kg)</label>
             <input
               style={S.input}
               type="number"
-              value={form.poidsKg || ""}
-              onChange={set("poidsKg")}
-              step="0.01"
-              placeholder="1.05"
+              value={form.poidsUnitaireKg || ""}
+              onChange={set("poidsUnitaireKg")}
+              step="0.001"
+              placeholder="1.050"
             />
           </div>
+        </div>
+
+        <div style={S.formGrid3}>
           <div style={S.formGroup}>
-            <label style={S.label}>Cartons / palette</label>
+            <label style={S.label}>Coef. boite</label>
             <input
               style={S.input}
               type="number"
-              value={form.qteParPalette}
-              onChange={set("qteParPalette")}
+              value={form.coefParBoite}
+              onChange={set("coefParBoite")}
               min="1"
+              placeholder="12"
             />
+            <div
+              style={{ fontSize: "10px", color: T.gray400, marginTop: "4px" }}
+            >
+              {form.uniteBase || "unités"} par boite
+            </div>
           </div>
+          <div style={S.formGroup}>
+            <label style={S.label}>Coef. carton</label>
+            <input
+              style={S.input}
+              type="number"
+              value={form.coefBoiteParCarton}
+              onChange={set("coefBoiteParCarton")}
+              min="1"
+              placeholder="4"
+            />
+            <div
+              style={{ fontSize: "10px", color: T.gray400, marginTop: "4px" }}
+            >
+              boites par carton
+            </div>
+          </div>
+          <div style={S.formGroup}>
+            <label style={S.label}>Coef. palette</label>
+            <input
+              style={S.input}
+              type="number"
+              value={form.coefCartonParPalette}
+              onChange={set("coefCartonParPalette")}
+              min="1"
+              placeholder="50"
+            />
+            <div
+              style={{ fontSize: "10px", color: T.gray400, marginTop: "4px" }}
+            >
+              cartons par palette
+            </div>
+          </div>
+        </div>
+
+        {/* Résumé calculé */}
+        <div style={S.modalSection}>Synthèse calculée</div>
+        <div style={S.calcGrid}>
+          <div style={S.calcCell}>
+            <div style={S.calcVal}>{calc.uniteParCarton}</div>
+            <div style={S.calcSub}>unités / carton</div>
+          </div>
+          <div style={S.calcCell}>
+            <div style={S.calcVal}>{calc.uniteParPalette}</div>
+            <div style={S.calcSub}>unités / palette</div>
+          </div>
+          <div style={{ ...S.calcCell, opacity: hasWeight ? 1 : 0.4 }}>
+            <div style={S.calcVal}>
+              {hasWeight ? calc.poidsCarton.toFixed(2) + " kg" : "—"}
+            </div>
+            <div style={S.calcSub}>poids carton</div>
+          </div>
+          <div style={{ ...S.calcCell, opacity: hasWeight ? 1 : 0.4 }}>
+            <div style={S.calcVal}>
+              {hasWeight ? calc.poidsPalette.toFixed(0) + " kg" : "—"}
+            </div>
+            <div style={S.calcSub}>poids palette</div>
+          </div>
+          <div style={{ ...S.calcCell, opacity: hasWeight ? 1 : 0.4 }}>
+            <div style={S.calcVal}>
+              {hasWeight ? calc.cartonsParCamion : "—"}
+            </div>
+            <div style={S.calcSub}>cartons / 24T</div>
+          </div>
+          <div style={{ ...S.calcCell, opacity: hasPrice ? 1 : 0.4 }}>
+            <div style={S.calcVal}>
+              {hasPrice ? calc.prixBoite.toLocaleString() : "—"}
+            </div>
+            <div style={S.calcSub}>prix boite (DZD)</div>
+          </div>
+          <div style={{ ...S.calcCell, opacity: hasPrice ? 1 : 0.4 }}>
+            <div style={S.calcVal}>
+              {hasPrice ? calc.prixCarton.toLocaleString() : "—"}
+            </div>
+            <div style={S.calcSub}>prix carton (DZD)</div>
+          </div>
+          <div style={{ ...S.calcCell, opacity: hasPrice ? 1 : 0.4 }}>
+            <div style={S.calcVal}>
+              {hasPrice ? calc.prixPalette.toLocaleString() : "—"}
+            </div>
+            <div style={S.calcSub}>prix palette (DZD)</div>
+          </div>
+        </div>
+
+        {/* Tarification */}
+        <div style={S.modalSection}>Tarification</div>
+        <div style={{ ...S.formGrid2, maxWidth: "300px" }}>
           <div style={S.formGroup}>
             <label style={S.label}>Prix unitaire (DZD)</label>
             <input
@@ -465,33 +680,6 @@ function ProduitModal({ produit, onClose, onSaved }) {
           </div>
         </div>
 
-        {parseFloat(form.poidsKg) > 0 && (
-          <div style={S.calcBox}>
-            <div style={S.calcItem}>
-              <div style={S.calcVal}>{calc.poidsCarton.toFixed(2)} kg</div>
-              <div style={S.calcLbl}>Poids / carton</div>
-            </div>
-            <div style={S.calcItem}>
-              <div style={S.calcVal}>{calc.poidsPalette.toFixed(0)} kg</div>
-              <div style={S.calcLbl}>Poids / palette</div>
-            </div>
-            <div style={S.calcItem}>
-              <div style={S.calcVal}>{calc.cartonsParCamion}</div>
-              <div style={S.calcLbl}>Cartons / camion 24T</div>
-            </div>
-          </div>
-        )}
-
-        <div style={{ ...S.formGroup, marginTop: "14px" }}>
-          <label style={S.label}>Description</label>
-          <input
-            style={S.input}
-            value={form.description || ""}
-            onChange={set("description")}
-            placeholder="Optionnel…"
-          />
-        </div>
-
         <div style={S.modalActions}>
           <button style={S.btnSecondary} onClick={onClose}>
             Annuler
@@ -501,19 +689,13 @@ function ProduitModal({ produit, onClose, onSaved }) {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? (
-              <i className="fa-solid fa-circle-notch fa-spin" />
-            ) : (
-              <i className="fa-solid fa-check" />
-            )}
-            {isEdit ? "Mettre à jour" : "Créer"}
+            {loading ? "..." : isEdit ? "Mettre à jour" : "Créer"}
           </button>
         </div>
       </div>
     </div>
   );
 }
-
 function SeuilModal({ seuil, produits, clrs, onClose, onSaved }) {
   const { toast } = useToast();
   const [form, setForm] = useState(
@@ -653,6 +835,9 @@ function SeuilModal({ seuil, produits, clrs, onClose, onSaved }) {
   );
 }
 
+// ════════════════════════════════════════════════════════════════
+// MODAL — CLR
+// ════════════════════════════════════════════════════════════════
 function CLRModal({ clr, plateformes, onClose, onSaved }) {
   const { toast } = useToast();
   const [form, setForm] = useState(clr || EMPTY_CLR);
@@ -682,14 +867,9 @@ function CLRModal({ clr, plateformes, onClose, onSaved }) {
     <div style={S.overlay} onClick={onClose}>
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
         <div style={S.modalTitle}>
-          <i
-            className="fa-solid fa-map-pin"
-            style={{ color: "#10b981", marginRight: "10px" }}
-          />
           {isEdit ? "Modifier le CLR" : "Nouveau CLR"}
         </div>
-
-        <div style={S.formGrid}>
+        <div style={S.formGrid2}>
           <div style={S.formGroup}>
             <label style={S.label}>Code *</label>
             <input
@@ -714,7 +894,6 @@ function CLRModal({ clr, plateformes, onClose, onSaved }) {
             </select>
           </div>
         </div>
-
         <div style={S.formGroup}>
           <label style={S.label}>Nom *</label>
           <input
@@ -724,7 +903,7 @@ function CLRModal({ clr, plateformes, onClose, onSaved }) {
             placeholder="CLR Sétif"
           />
         </div>
-        <div style={S.formGrid}>
+        <div style={S.formGrid2}>
           <div style={S.formGroup}>
             <label style={S.label}>Wilaya *</label>
             <input
@@ -756,10 +935,9 @@ function CLRModal({ clr, plateformes, onClose, onSaved }) {
             style={S.input}
             value={form.adresse || ""}
             onChange={set("adresse")}
-            placeholder="Zone industrielle…"
+            placeholder="Zone industrielle..."
           />
         </div>
-
         <div style={S.modalActions}>
           <button style={S.btnSecondary} onClick={onClose}>
             Annuler
@@ -769,12 +947,7 @@ function CLRModal({ clr, plateformes, onClose, onSaved }) {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? (
-              <i className="fa-solid fa-circle-notch fa-spin" />
-            ) : (
-              <i className="fa-solid fa-check" />
-            )}
-            {isEdit ? "Mettre à jour" : "Créer"}
+            {loading ? "..." : isEdit ? "Mettre à jour" : "Créer"}
           </button>
         </div>
       </div>
@@ -782,6 +955,9 @@ function CLRModal({ clr, plateformes, onClose, onSaved }) {
   );
 }
 
+// ════════════════════════════════════════════════════════════════
+// MODAL — Plateforme
+// ════════════════════════════════════════════════════════════════
 function PlateformeModal({ plateforme, onClose, onSaved }) {
   const { toast } = useToast();
   const [form, setForm] = useState(plateforme || EMPTY_PLF);
@@ -811,13 +987,8 @@ function PlateformeModal({ plateforme, onClose, onSaved }) {
     <div style={S.overlay} onClick={onClose}>
       <div style={S.modal} onClick={(e) => e.stopPropagation()}>
         <div style={S.modalTitle}>
-          <i
-            className="fa-solid fa-warehouse"
-            style={{ color: "#8b5cf6", marginRight: "10px" }}
-          />
           {isEdit ? "Modifier la plateforme" : "Nouvelle plateforme"}
         </div>
-
         <div style={S.formGroup}>
           <label style={S.label}>Nom *</label>
           <input
@@ -827,7 +998,7 @@ function PlateformeModal({ plateforme, onClose, onSaved }) {
             placeholder="Plateforme Est"
           />
         </div>
-        <div style={S.formGrid}>
+        <div style={S.formGrid2}>
           <div style={S.formGroup}>
             <label style={S.label}>Ville *</label>
             <input
@@ -862,7 +1033,6 @@ function PlateformeModal({ plateforme, onClose, onSaved }) {
             min="1"
           />
         </div>
-
         <div style={S.modalActions}>
           <button style={S.btnSecondary} onClick={onClose}>
             Annuler
@@ -872,12 +1042,7 @@ function PlateformeModal({ plateforme, onClose, onSaved }) {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? (
-              <i className="fa-solid fa-circle-notch fa-spin" />
-            ) : (
-              <i className="fa-solid fa-check" />
-            )}
-            {isEdit ? "Mettre à jour" : "Créer"}
+            {loading ? "..." : isEdit ? "Mettre à jour" : "Créer"}
           </button>
         </div>
       </div>
@@ -886,28 +1051,42 @@ function PlateformeModal({ plateforme, onClose, onSaved }) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// ONGLETS
+// ONGLET — Produits
 // ════════════════════════════════════════════════════════════════
-
 function OngletProduits() {
   const { toast } = useToast();
   const [produits, setProduits] = useState([]);
+  const [familles, setFamilles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filtreFamille, setFiltreFamille] = useState("");
   const [modal, setModal] = useState(null);
+  const [showFamilleModal, setShowFamilleModal] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
       const r = await api.get("/stock/produits");
+
       setProduits(r.data);
+
+      const famillesUniques = [
+        ...new Set(r.data.map((p) => p.famille).filter(Boolean)),
+      ];
+
+      setFamilles(
+        famillesUniques.map((f) => ({
+          code: f,
+          nom: f,
+        })),
+      );
     } catch {
       toast.error("Erreur chargement produits");
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     load();
   }, []);
@@ -938,15 +1117,17 @@ function OngletProduits() {
       {modal && (
         <ProduitModal
           produit={modal === "new" ? null : modal}
+          familles={familles}
           onClose={() => setModal(null)}
           onSaved={load}
         />
       )}
+
       <div style={S.toolbar}>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <input
             style={S.search}
-            placeholder="🔍 SKU, nom, marque…"
+            placeholder="Rechercher SKU, nom, marque..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -956,31 +1137,31 @@ function OngletProduits() {
             onChange={(e) => setFiltreFamille(e.target.value)}
           >
             <option value="">Toutes familles</option>
-            {FAMILLES.map((f) => (
-              <option key={f} value={f}>
-                {f}
+            {familles.map((f) => (
+              <option key={f.code || f} value={f.code || f}>
+                {f.nom || f}
               </option>
             ))}
           </select>
         </div>
-        <button style={S.btnPrimary} onClick={() => setModal("new")}>
-          <i className="fa-solid fa-plus" /> Nouveau produit
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button style={S.btnPrimary} onClick={() => setModal("new")}>
+            + Nouveau produit
+          </button>
+        </div>
       </div>
+
       <div style={S.card}>
         {loading ? (
           <div
-            style={{ padding: "48px", textAlign: "center", color: "#6b7280" }}
+            style={{
+              padding: "48px",
+              textAlign: "center",
+              color: T.gray400,
+              fontSize: "13px",
+            }}
           >
-            <i
-              className="fa-solid fa-circle-notch fa-spin"
-              style={{
-                fontSize: "24px",
-                display: "block",
-                marginBottom: "12px",
-              }}
-            />
-            Chargement…
+            Chargement...
           </div>
         ) : (
           <table style={S.table}>
@@ -988,15 +1169,15 @@ function OngletProduits() {
               <tr>
                 {[
                   "SKU",
-                  "Nom",
+                  "Désignation",
                   "Famille",
                   "Marque",
                   "Conditionnement",
-                  "Poids/carton",
-                  "Poids/palette",
-                  "Prix DZD",
+                  "Poids carton",
+                  "Poids palette",
+                  "Prix unitaire",
                   "Statut",
-                  "Actions",
+                  "",
                 ].map((h) => (
                   <th key={h} style={S.th}>
                     {h}
@@ -1012,8 +1193,8 @@ function OngletProduits() {
                     style={{
                       ...S.td,
                       textAlign: "center",
-                      color: "#6b7280",
-                      padding: "40px",
+                      color: T.gray400,
+                      padding: "48px",
                     }}
                   >
                     Aucun produit
@@ -1021,70 +1202,78 @@ function OngletProduits() {
                 </tr>
               ) : (
                 filtered.map((p) => {
-                  const calc = calculs(p);
-                  const color = FAMILLE_COLORS[p.famille] || "#6b7280";
+                  const calc = calcConditionnement(p);
                   return (
-                    <tr key={p.id}>
+                    <tr key={p.id} style={{ background: T.white }}>
                       <td
                         style={{
                           ...S.td,
                           fontFamily: "monospace",
                           fontSize: "12px",
-                          color: "#94a3b8",
+                          color: T.gray600,
                         }}
                       >
                         {p.sku}
                       </td>
-                      <td style={{ ...S.td, fontWeight: 600, color: "#fff" }}>
+                      <td style={{ ...S.td, fontWeight: 600, color: T.black }}>
                         {p.nom}
                       </td>
                       <td style={S.td}>
-                        <span style={S.badge(color)}>{p.famille}</span>
+                        <span style={S.badge(T.red)}>{p.famille}</span>
                       </td>
-                      <td style={{ ...S.td, color: "#9ca3af" }}>
+                      <td style={{ ...S.td, color: T.gray600 }}>
                         {p.marque || "—"}
                       </td>
                       <td
-                        style={{ ...S.td, color: "#9ca3af", fontSize: "12px" }}
+                        style={{ ...S.td, color: T.gray600, fontSize: "12px" }}
                       >
-                        {p.qteParCarton}u/ctn · {p.qteParPalette}ctn/plt
+                        {p.coefParBoite}×{p.coefBoiteParCarton}×
+                        {p.coefCartonParPalette}
+                        <span style={{ color: T.gray400 }}>
+                          {" "}
+                          = {calc.uniteParPalette} u/plt
+                        </span>
                       </td>
                       <td
                         style={{
                           ...S.td,
-                          color: p.poidsKg ? "#e2e8f0" : "#4b5563",
+                          color: p.poidsUnitaireKg ? T.gray800 : T.gray200,
                         }}
                       >
-                        {p.poidsKg ? `${calc.poidsCarton.toFixed(2)} kg` : "—"}
+                        {p.poidsUnitaireKg
+                          ? `${calc.poidsCarton.toFixed(2)} kg`
+                          : "—"}
                       </td>
                       <td
                         style={{
                           ...S.td,
-                          color: p.poidsKg ? "#e2e8f0" : "#4b5563",
+                          color: p.poidsUnitaireKg ? T.gray800 : T.gray200,
                         }}
                       >
-                        {p.poidsKg ? `${calc.poidsPalette.toFixed(0)} kg` : "—"}
+                        {p.poidsUnitaireKg
+                          ? `${calc.poidsPalette.toFixed(0)} kg`
+                          : "—"}
                       </td>
-                      <td style={{ ...S.td, color: "#94a3b8" }}>
+                      <td style={{ ...S.td, color: T.gray600 }}>
                         {p.prixUnitaireDZD
                           ? `${p.prixUnitaireDZD.toLocaleString()} DZD`
                           : "—"}
                       </td>
                       <td style={S.td}>
-                        <span style={S.actifBadge(p.actif)}>
+                        <span style={S.activeBadge(p.actif)}>
                           {p.actif ? "Actif" : "Inactif"}
                         </span>
                       </td>
                       <td style={S.td}>
                         <div style={{ display: "flex", gap: "6px" }}>
                           <button style={S.btnEdit} onClick={() => setModal(p)}>
-                            <i className="fa-solid fa-pen" />
+                            Modifier
                           </button>
                           <button
                             style={S.btnDanger}
                             onClick={() => handleDelete(p)}
                           >
-                            <i className="fa-solid fa-ban" />
+                            Désactiver
                           </button>
                         </div>
                       </td>
@@ -1096,14 +1285,14 @@ function OngletProduits() {
           </table>
         )}
       </div>
-      <div style={{ marginTop: "12px", fontSize: "12px", color: "#4b5563" }}>
-        {filtered.length} produit{filtered.length !== 1 ? "s" : ""} ·{" "}
+      <div style={S.count}>
+        {filtered.length} produit{filtered.length !== 1 ? "s" : ""}{" "}
+        &nbsp;·&nbsp;
         {produits.filter((p) => p.actif).length} actifs
       </div>
     </>
   );
 }
-
 function OngletSeuils() {
   const { toast } = useToast();
   const [seuils, setSeuils] = useState([]);
@@ -1229,7 +1418,7 @@ function OngletSeuils() {
               ) : (
                 filtered.map((s) => (
                   <tr key={s.id}>
-                    <td style={{ ...S.td, fontWeight: 600, color: "#fff" }}>
+                    <td style={{ ...S.td, fontWeight: 600 }}>
                       {s.produit?.nom || "—"}
                     </td>
                     <td
@@ -1237,21 +1426,22 @@ function OngletSeuils() {
                         ...S.td,
                         fontFamily: "monospace",
                         fontSize: "12px",
-                        color: "#94a3b8",
+                        color: T.gray600,
                       }}
                     >
                       {s.produit?.sku || "—"}
                     </td>
-                    <td style={{ ...S.td, color: "#9ca3af" }}>
+                    <td style={{ ...S.td, color: T.gray600 }}>
+                      {" "}
                       {s.clr ? (
                         <>
-                          <span style={{ color: "#3b82f6", fontWeight: 600 }}>
+                          <span style={{ color: T.black, fontWeight: 600 }}>
                             {s.clr.code}
                           </span>{" "}
                           — {s.clr.nom}
                         </>
                       ) : (
-                        <span style={{ color: "#6b7280", fontStyle: "italic" }}>
+                        <span style={{ color: T.gray400, fontStyle: "italic" }}>
                           Global
                         </span>
                       )}
@@ -1293,6 +1483,9 @@ function OngletSeuils() {
   );
 }
 
+// ════════════════════════════════════════════════════════════════
+// ONGLET — CLR
+// ════════════════════════════════════════════════════════════════
 function OngletCLR() {
   const { toast } = useToast();
   const [clrs, setClrs] = useState([]);
@@ -1353,10 +1546,10 @@ function OngletCLR() {
         />
       )}
       <div style={S.toolbar}>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "10px" }}>
           <input
             style={S.search}
-            placeholder="🔍 Code, nom, wilaya…"
+            placeholder="Code, nom, wilaya..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -1374,23 +1567,21 @@ function OngletCLR() {
           </select>
         </div>
         <button style={S.btnPrimary} onClick={() => setModal("new")}>
-          <i className="fa-solid fa-plus" /> Nouveau CLR
+          + Nouveau CLR
         </button>
       </div>
+
       <div style={S.card}>
         {loading ? (
           <div
-            style={{ padding: "48px", textAlign: "center", color: "#6b7280" }}
+            style={{
+              padding: "48px",
+              textAlign: "center",
+              color: T.gray400,
+              fontSize: "13px",
+            }}
           >
-            <i
-              className="fa-solid fa-circle-notch fa-spin"
-              style={{
-                fontSize: "24px",
-                display: "block",
-                marginBottom: "12px",
-              }}
-            />
-            Chargement…
+            Chargement...
           </div>
         ) : (
           <table style={S.table}>
@@ -1404,7 +1595,7 @@ function OngletCLR() {
                   "Plateforme",
                   "Adresse",
                   "Statut",
-                  "Actions",
+                  "",
                 ].map((h) => (
                   <th key={h} style={S.th}>
                     {h}
@@ -1420,8 +1611,8 @@ function OngletCLR() {
                     style={{
                       ...S.td,
                       textAlign: "center",
-                      color: "#6b7280",
-                      padding: "40px",
+                      color: T.gray400,
+                      padding: "48px",
                     }}
                   >
                     Aucun CLR
@@ -1429,7 +1620,7 @@ function OngletCLR() {
                 </tr>
               ) : (
                 filtered.map((c) => {
-                  const rc = REGION_COLORS[c.region] || "#6b7280";
+                  const rc = REGION_COLORS[c.region] || T.gray600;
                   return (
                     <tr key={c.id}>
                       <td
@@ -1437,43 +1628,43 @@ function OngletCLR() {
                           ...S.td,
                           fontFamily: "monospace",
                           fontWeight: 700,
-                          color: "#3b82f6",
+                          color: T.black,
                         }}
                       >
                         {c.code}
                       </td>
-                      <td style={{ ...S.td, fontWeight: 600, color: "#fff" }}>
+                      <td style={{ ...S.td, fontWeight: 600, color: T.black }}>
                         {c.nom}
                       </td>
-                      <td style={{ ...S.td, color: "#9ca3af" }}>{c.wilaya}</td>
+                      <td style={{ ...S.td, color: T.gray600 }}>{c.wilaya}</td>
                       <td style={S.td}>
                         <span style={S.badge(rc)}>{c.region}</span>
                       </td>
                       <td
-                        style={{ ...S.td, color: "#9ca3af", fontSize: "12px" }}
+                        style={{ ...S.td, color: T.gray600, fontSize: "12px" }}
                       >
                         {c.plateforme?.nom || "—"}
                       </td>
                       <td
-                        style={{ ...S.td, color: "#6b7280", fontSize: "12px" }}
+                        style={{ ...S.td, color: T.gray400, fontSize: "12px" }}
                       >
                         {c.adresse || "—"}
                       </td>
                       <td style={S.td}>
-                        <span style={S.actifBadge(c.actif)}>
+                        <span style={S.activeBadge(c.actif)}>
                           {c.actif ? "Actif" : "Inactif"}
                         </span>
                       </td>
                       <td style={S.td}>
                         <div style={{ display: "flex", gap: "6px" }}>
                           <button style={S.btnEdit} onClick={() => setModal(c)}>
-                            <i className="fa-solid fa-pen" />
+                            Modifier
                           </button>
                           <button
                             style={S.btnDanger}
                             onClick={() => handleDelete(c)}
                           >
-                            <i className="fa-solid fa-ban" />
+                            Désactiver
                           </button>
                         </div>
                       </td>
@@ -1485,13 +1676,17 @@ function OngletCLR() {
           </table>
         )}
       </div>
-      <div style={{ marginTop: "12px", fontSize: "12px", color: "#4b5563" }}>
-        {filtered.length} CLR · {clrs.filter((c) => c.actif).length} actifs
+      <div style={S.count}>
+        {filtered.length} CLR &nbsp;·&nbsp; {clrs.filter((c) => c.actif).length}{" "}
+        actifs
       </div>
     </>
   );
 }
 
+// ════════════════════════════════════════════════════════════════
+// ONGLET — Plateformes
+// ════════════════════════════════════════════════════════════════
 function OngletPlateformes() {
   const { toast } = useToast();
   const [plateformes, setPlateformes] = useState([]);
@@ -1523,28 +1718,32 @@ function OngletPlateformes() {
         />
       )}
       <div style={S.toolbar}>
-        <div style={{ fontSize: "13px", color: "#6b7280" }}>
+        <span
+          style={{
+            fontSize: "12px",
+            color: T.gray400,
+            letterSpacing: "0.03em",
+          }}
+        >
           {plateformes.length} plateforme{plateformes.length !== 1 ? "s" : ""}{" "}
           logistique{plateformes.length !== 1 ? "s" : ""}
-        </div>
+        </span>
         <button style={S.btnPrimary} onClick={() => setModal("new")}>
-          <i className="fa-solid fa-plus" /> Nouvelle plateforme
+          + Nouvelle plateforme
         </button>
       </div>
+
       <div style={S.card}>
         {loading ? (
           <div
-            style={{ padding: "48px", textAlign: "center", color: "#6b7280" }}
+            style={{
+              padding: "48px",
+              textAlign: "center",
+              color: T.gray400,
+              fontSize: "13px",
+            }}
           >
-            <i
-              className="fa-solid fa-circle-notch fa-spin"
-              style={{
-                fontSize: "24px",
-                display: "block",
-                marginBottom: "12px",
-              }}
-            />
-            Chargement…
+            Chargement...
           </div>
         ) : (
           <table style={S.table}>
@@ -1556,7 +1755,7 @@ function OngletPlateformes() {
                   "Région",
                   "Capacité (palettes)",
                   "CLR rattachés",
-                  "Actions",
+                  "",
                 ].map((h) => (
                   <th key={h} style={S.th}>
                     {h}
@@ -1572,8 +1771,8 @@ function OngletPlateformes() {
                     style={{
                       ...S.td,
                       textAlign: "center",
-                      color: "#6b7280",
-                      padding: "40px",
+                      color: T.gray400,
+                      padding: "48px",
                     }}
                   >
                     Aucune plateforme
@@ -1581,27 +1780,25 @@ function OngletPlateformes() {
                 </tr>
               ) : (
                 plateformes.map((p) => {
-                  const rc = REGION_COLORS[p.region] || "#6b7280";
+                  const rc = REGION_COLORS[p.region] || T.gray600;
                   return (
                     <tr key={p.id}>
-                      <td style={{ ...S.td, fontWeight: 700, color: "#fff" }}>
+                      <td style={{ ...S.td, fontWeight: 700, color: T.black }}>
                         {p.nom}
                       </td>
-                      <td style={{ ...S.td, color: "#9ca3af" }}>{p.ville}</td>
+                      <td style={{ ...S.td, color: T.gray600 }}>{p.ville}</td>
                       <td style={S.td}>
                         <span style={S.badge(rc)}>{p.region}</span>
                       </td>
-                      <td
-                        style={{ ...S.td, color: "#3b82f6", fontWeight: 600 }}
-                      >
+                      <td style={{ ...S.td, fontWeight: 600, color: T.black }}>
                         {(p.capacite || 0).toLocaleString()}
                       </td>
-                      <td style={{ ...S.td, color: "#9ca3af" }}>
+                      <td style={{ ...S.td, color: T.gray600 }}>
                         {p.clrs?.length || 0} CLR
                       </td>
                       <td style={S.td}>
                         <button style={S.btnEdit} onClick={() => setModal(p)}>
-                          <i className="fa-solid fa-pen" />
+                          Modifier
                         </button>
                       </td>
                     </tr>
@@ -1623,10 +1820,11 @@ export default function DataManager() {
   const [onglet, setOnglet] = useState("produits");
 
   const ONGLETS = [
-    { key: "produits", icon: "fa-box", label: "Produits" },
+    { key: "produits", label: "Produits" },
     { key: "seuils", icon: "fa-bell", label: "Seuils d'alerte" },
-    { key: "clrs", icon: "fa-map-pin", label: "CLR" },
-    { key: "plateformes", icon: "fa-warehouse", label: "Plateformes" },
+
+    { key: "clrs", label: "CLR" },
+    { key: "plateformes", label: "Plateformes" },
   ];
 
   return (
@@ -1635,15 +1833,15 @@ export default function DataManager() {
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
       />
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
 
       <div style={S.header}>
-        <h1 style={S.title}>
-          <i
-            className="fa-solid fa-database"
-            style={{ color: "#3b82f6", marginRight: "12px" }}
-          />
-          Données de base
-        </h1>
+        <h1 style={S.title}>Données de base</h1>
+        <p style={S.sub}>Catalogue produits, CLR et plateformes logistiques</p>
         <p style={S.sub}>
           Catalogue produits, seuils d'alerte, CLR et plateformes logistiques
         </p>
@@ -1656,10 +1854,6 @@ export default function DataManager() {
             style={S.tab(onglet === o.key)}
             onClick={() => setOnglet(o.key)}
           >
-            <i
-              className={`fa-solid ${o.icon}`}
-              style={{ marginRight: "8px" }}
-            />
             {o.label}
           </button>
         ))}
@@ -1667,6 +1861,7 @@ export default function DataManager() {
 
       {onglet === "produits" && <OngletProduits />}
       {onglet === "seuils" && <OngletSeuils />}
+
       {onglet === "clrs" && <OngletCLR />}
       {onglet === "plateformes" && <OngletPlateformes />}
     </div>

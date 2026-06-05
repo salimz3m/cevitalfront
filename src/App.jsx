@@ -10,7 +10,6 @@ import Sidebar, { sidebarWidth } from "./components/Sidebar";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-import Landing from "./pages/Landing";
 import KeepContact from "./pages/KeepContact";
 
 // Planification
@@ -37,7 +36,6 @@ import DataManager from "./pages/admin/DataManager";
 import Infrastructure from "./pages/admin/Infrastructure";
 import Commercial from "./pages/modules/Commercial";
 import Kpi from "./pages/modules/KPIDashboard";
-
 // ─── Guards ──────────────────────────────────────────────────
 function RequireAuth({ children, roles }) {
   const { user, loading } = useAuth();
@@ -94,7 +92,7 @@ export default function App() {
         <ToastProvider>
           <Routes>
             {/* Public */}
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<Login />} />
             <Route path="/keep-contact" element={<KeepContact />} />
             <Route
               path="/login"
@@ -312,6 +310,17 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            {/* ── KPI Dashboard Sprint 14 ── */}
+            <Route
+              path="admin/kpi"
+              element={
+                <RequireAuth roles={["admin"]}>
+                  <AppLayout>
+                    <Kpi />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
             {/* ── Commercial Sprint 13 ── */}
             <Route
               path="/commercial"
@@ -324,17 +333,6 @@ export default function App() {
               }
             />
 
-            {/* ── KPI Dashboard Sprint 14 ── */}
-            <Route
-              path="/kpi"
-              element={
-                <RequireAuth roles={["admin", "planification"]}>
-                  <AppLayout>
-                    <Kpi />
-                  </AppLayout>
-                </RequireAuth>
-              }
-            />
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

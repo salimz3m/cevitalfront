@@ -19,6 +19,14 @@ const NAV = [
     ],
   },
 
+  // ── KEEP CONTACT ──
+  {
+    label: "Keep Contact",
+    icon: "fa-headset",
+    roles: ["admin", "keep_contact"],
+    children: [{ to: "/keep-contact", icon: "fa-inbox", label: "Commandes" }],
+  },
+
   // ── PLANIFICATION ──
   {
     label: "Planification",
@@ -45,14 +53,6 @@ const NAV = [
     ],
   },
 
-  // ── KEEP CONTACT ──
-  {
-    label: "Keep Contact",
-    icon: "fa-headset",
-    roles: ["admin", "keep_contact"],
-    children: [{ to: "/keep-contact", icon: "fa-inbox", label: "Commandes" }],
-  },
-
   // ── STOCK ──
   {
     label: "Stock",
@@ -74,23 +74,6 @@ const NAV = [
     ],
   },
 
-  // ── COMMERCIAL Sprint 13 ──
-  {
-    label: "Commercial",
-    icon: "fa-handshake-simple",
-    roles: ["admin", "planification", "commercial"],
-    children: [
-      { to: "/commercial", icon: "fa-users", label: "Clients & Livraisons" },
-    ],
-  },
-  // ── KPI DASHBOARD Sprint 14 ──
-  {
-    to: "/kpi",
-    icon: "fa-chart-mixed",
-    label: "KPI Dashboard",
-    roles: ["admin", "planification"],
-  },
-
   // ── ADMINISTRATION ──
   {
     label: "Administration",
@@ -99,9 +82,13 @@ const NAV = [
     children: [
       { to: "/admin", icon: "fa-gauge", label: "Dashboard admin" },
       { to: "/admin/users", icon: "fa-users", label: "Utilisateurs" },
-      { to: "/admin/modules", icon: "fa-puzzle-piece", label: "Modules" },
-      { to: "/admin/company", icon: "fa-building", label: "Organisation" },
       { to: "/admin/data", icon: "fa-database", label: "Données de base" },
+      // ── KPI DASHBOARD Sprint 14 ──
+      {
+        to: "/admin/kpi",
+        icon: "fa-brain",
+        label: "KPI Dashboard",
+      },
       {
         to: "/admin/infrastructure",
         icon: "fa-sitemap",
