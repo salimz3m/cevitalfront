@@ -1,29 +1,8 @@
-// pages/transport/TransportIntelligent.jsx — Sprint 5
+// pages/transport/TransportIntelligent.jsx — Sprint 5 — Redesign blanc épuré
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import ModuleGate from "../../components/ModuleGate";
-
-// ─── Design tokens (identiques à TransportWorkflow) ──────────
-const C = {
-  bg: "#0f1117",
-  surface: "#181c27",
-  border: "#252a38",
-  accent: "#3b82f6",
-  accentLo: "rgba(59,130,246,0.12)",
-  green: "#22c55e",
-  greenLo: "rgba(34,197,94,0.12)",
-  orange: "#f97316",
-  orangeLo: "rgba(249,115,22,0.12)",
-  red: "#ef4444",
-  redLo: "rgba(239,68,68,0.12)",
-  yellow: "#eab308",
-  yellowLo: "rgba(234,179,8,0.12)",
-  purple: "#a855f7",
-  purpleLo: "rgba(168,85,247,0.12)",
-  text: "#e2e8f0",
-  muted: "#64748b",
-  card: "#1e2235",
-};
+import { DS_STYLE } from "../design-system";
 
 // ─── API helper ──────────────────────────────────────────────
 const api = axios.create({ baseURL: "/api" });
@@ -33,129 +12,60 @@ api.interceptors.request.use((cfg) => {
   return cfg;
 });
 
-// ─── Composants UI réutilisables ─────────────────────────────
-const Card = ({ children, style = {}, accent = null }) => (
-  <div
-    style={{
-      background: C.card,
-      border: `1px solid ${C.border}`,
-      borderRadius: 14,
-      padding: 20,
-      borderLeft: accent ? `3px solid ${accent}` : undefined,
-      ...style,
-    }}
-  >
-    {children}
-  </div>
-);
+// ─── Helpers config ──────────────────────────────────────────
+const PRIORITE_CFG = {
+  HIGH: { badgeCls: "ds-badge ds-badge-red", label: "Urgent" },
+  MEDIUM: { badgeCls: "ds-badge ds-badge-amber", label: "Moyen" },
+  LOW: { badgeCls: "ds-badge ds-badge-neutral", label: "Faible" },
+};
 
-const SectionTitle = ({ icon, title, subtitle }) => (
-  <div style={{ marginBottom: 20 }}>
-    <h2
-      style={{
-        margin: 0,
-        fontSize: 17,
-        fontWeight: 800,
-        color: C.text,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      {icon} {title}
-    </h2>
-    {subtitle && (
-      <p style={{ margin: "4px 0 0", fontSize: 12, color: C.muted }}>
-        {subtitle}
-      </p>
-    )}
-  </div>
-);
+const NIVEAU_CFG = {
+  EXCELLENT: {
+    barColor: "var(--ds-green)",
+    badgeCls: "ds-badge ds-badge-green",
+  },
+  BON: { barColor: "var(--ds-blue)", badgeCls: "ds-badge ds-badge-blue" },
+  MOYEN: { barColor: "var(--ds-amber)", badgeCls: "ds-badge ds-badge-amber" },
+  RISQUE: { barColor: "var(--ds-red)", badgeCls: "ds-badge ds-badge-red" },
+  A_AMELIORER: {
+    barColor: "var(--ds-amber)",
+    badgeCls: "ds-badge ds-badge-amber",
+  },
+  INSUFFISANT: {
+    barColor: "var(--ds-ink-3)",
+    badgeCls: "ds-badge ds-badge-neutral",
+  },
+};
 
-const Badge = ({ label, color, bg }) => (
-  <span
-    style={{
-      display: "inline-flex",
-      alignItems: "center",
-      padding: "3px 10px",
-      borderRadius: 20,
-      fontSize: 11,
-      fontWeight: 700,
-      letterSpacing: "0.05em",
-      color: color || C.muted,
-      background: bg || C.surface,
-      border: `1px solid ${(color || C.muted) + "40"}`,
-    }}
-  >
-    {label}
-  </span>
-);
+const TENDANCE_LABEL = {
+  EXCELLENT: "Excellent",
+  BON: "Bon",
+  MOYEN: "Moyen",
+  A_AMELIORER: "À améliorer",
+  INSUFFISANT: "Insuffisant",
+};
 
 const ScoreBar = ({ value, color }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-    <div
-      style={{
-        flex: 1,
-        height: 8,
-        background: C.border,
-        borderRadius: 4,
-        overflow: "hidden",
-      }}
-    >
+    <div className="ds-bar-track" style={{ flex: 1 }}>
       <div
-        style={{
-          width: `${value}%`,
-          height: "100%",
-          background: color || C.accent,
-          borderRadius: 4,
-          transition: "width 0.6s ease",
-        }}
+        className="ds-bar-fill"
+        style={{ width: `${value}%`, background: color }}
       />
     </div>
     <span
       style={{
-        fontSize: 13,
+        fontSize: ".78rem",
         fontWeight: 700,
-        color: color || C.accent,
-        minWidth: 36,
+        color,
+        minWidth: 30,
+        fontFamily: "var(--ds-mono)",
       }}
     >
       {value}
     </span>
   </div>
 );
-
-const Spinner = () => (
-  <div style={{ textAlign: "center", padding: 80, color: C.muted }}>
-    <div
-      style={{
-        fontSize: 32,
-        marginBottom: 12,
-        animation: "spin 1s linear infinite",
-        display: "inline-block",
-      }}
-    >
-      ⚙️
-    </div>
-    <div style={{ fontSize: 14 }}>Analyse en cours…</div>
-  </div>
-);
-
-// ─── Helpers ─────────────────────────────────────────────────
-const PRIORITE_CFG = {
-  HIGH: { color: C.red, bg: C.redLo, label: "Urgent" },
-  MEDIUM: { color: C.orange, bg: C.orangeLo, label: "Moyen" },
-  LOW: { color: C.muted, bg: C.surface, label: "Faible" },
-};
-
-const NIVEAU_CFG = {
-  EXCELLENT: { color: C.green, bg: C.greenLo },
-  BON: { color: C.accent, bg: C.accentLo },
-  MOYEN: { color: C.yellow, bg: C.yellowLo },
-  RISQUE: { color: C.red, bg: C.redLo },
-  A_AMELIORER: { color: C.orange, bg: C.orangeLo },
-  INSUFFISANT: { color: C.muted, bg: C.surface },
-};
 
 const fmt = (n, suffix = "") => (n != null ? `${n}${suffix}` : "N/A");
 
@@ -166,10 +76,9 @@ export default function TransportIntelligent() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState("alertes"); // alertes | regroupement | prestataires | performance
+  const [tab, setTab] = useState("alertes");
   const [lastRefresh, setLastRefresh] = useState(null);
 
-  // ── Chargement ───────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -190,285 +99,252 @@ export default function TransportIntelligent() {
     load();
   }, [load]);
 
-  // ── Onglets ──────────────────────────────────────────────────
   const TABS = [
     {
       id: "alertes",
-      label: "🚨 Alertes",
+      icon: "fa-bell",
+      label: "Alertes",
       badge: data?.alertes?.nbCritiques || 0,
-      badgeColor: C.red,
+      badgeType: "red",
     },
     {
       id: "regroupement",
-      label: "📦 Regroupement",
+      icon: "fa-boxes-stacked",
+      label: "Regroupement",
       badge: data?.regroupement?.totalLignes || 0,
-      badgeColor: C.orange,
+      badgeType: "amber",
     },
-    { id: "prestataires", label: "🏆 Prestataires", badge: null },
-    { id: "performance", label: "📊 Performance", badge: null },
+    {
+      id: "prestataires",
+      icon: "fa-ranking-star",
+      label: "Prestataires",
+      badge: null,
+    },
+    {
+      id: "performance",
+      icon: "fa-chart-line",
+      label: "Performance",
+      badge: null,
+    },
   ];
 
-  // ── Rendu résumé exécutif ────────────────────────────────────
+  // ── Résumé KPI ────────────────────────────────────────────────
   const renderResume = () => {
     if (!data) return null;
-    const { resume, performance } = data;
-    const tendanceCfg =
-      NIVEAU_CFG[performance?.tendance] || NIVEAU_CFG.INSUFFISANT;
-
+    const { resume, performance, alertes, regroupement, prestataires } = data;
+    const kpis = [
+      {
+        lbl: "Alertes critiques",
+        val: alertes?.nbCritiques || 0,
+        cls: alertes?.nbCritiques > 0 ? "red" : "green",
+        icon: "fa-bell",
+      },
+      {
+        lbl: "Lignes à expédier",
+        val: regroupement?.totalLignes || 0,
+        cls: "amber",
+        icon: "fa-boxes-stacked",
+      },
+      {
+        lbl: "Taux de service",
+        val: performance?.kpi?.tauxService || "—",
+        cls: "blue",
+        icon: "fa-chart-line",
+      },
+      {
+        lbl: "Meilleur prestataire",
+        val: prestataires?.meilleur?.nom || "—",
+        cls: "",
+        icon: "fa-ranking-star",
+      },
+    ];
     return (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 28,
-        }}
-      >
-        {[
-          {
-            label: "Alertes critiques",
-            value: data.alertes?.nbCritiques || 0,
-            icon: "🚨",
-            color: data.alertes?.nbCritiques > 0 ? C.red : C.green,
-            sub: `+${data.alertes?.nbWarnings || 0} warnings`,
-          },
-          {
-            label: "Lignes à expédier",
-            value: data.regroupement?.totalLignes || 0,
-            icon: "📦",
-            color: C.orange,
-            sub: `${data.regroupement?.totalCLR || 0} destination(s)`,
-          },
-          {
-            label: "Taux de service",
-            value: performance?.kpi?.tauxService || "N/A",
-            icon: "✅",
-            color: tendanceCfg.color,
-            sub: performance?.periode || "",
-          },
-          {
-            label: "Meilleur prestataire",
-            value: data.prestataires?.meilleur?.nom || "—",
-            icon: "🏆",
-            color: C.yellow,
-            sub: data.prestataires?.meilleur
-              ? `Score ${data.prestataires.meilleur.score}/100`
-              : "Aucune donnée",
-          },
-        ].map((kpi) => (
-          <Card key={kpi.label} accent={kpi.color}>
-            <div style={{ fontSize: 22 }}>{kpi.icon}</div>
+      <div className="ds-kpi-strip">
+        {kpis.map((k) => (
+          <div key={k.lbl} className="ds-kpi">
+            <div className="ds-kpi-lbl">{k.lbl}</div>
             <div
+              className={`ds-kpi-val ${k.cls}`}
               style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: kpi.color,
-                margin: "6px 0 2px",
+                fontSize:
+                  typeof k.val === "string" && k.val.length > 6
+                    ? "1rem"
+                    : undefined,
               }}
             >
-              {kpi.value}
+              {k.val}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
-              {kpi.label}
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-              {kpi.sub}
-            </div>
-          </Card>
+            <i className={`fas ${k.icon} ds-kpi-icon`}></i>
+          </div>
         ))}
       </div>
     );
   };
 
-  // ── Onglet Alertes ───────────────────────────────────────────
+  // ── Alertes ───────────────────────────────────────────────────
   const renderAlertes = () => {
     const { alertes } = data;
-    if (alertes.total === 0) {
+    if (alertes.total === 0)
       return (
-        <Card style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.green }}>
-            Aucune alerte active
-          </div>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
-            Tous les ordres en cours sont dans les délais
-          </div>
-        </Card>
+        <div className="ds-empty">
+          <i className="fas fa-bell-slash"></i>
+          <p>Aucune alerte active — tous les ordres sont dans les délais</p>
+        </div>
       );
-    }
 
-    const TYPE_CFG = {
-      RETARD: { icon: "⏰", color: C.orange },
-      NON_DEMARRE: { icon: "⏸️", color: C.yellow },
-      INCIDENT: { icon: "🔴", color: C.red },
+    const TYPE_ICON = {
+      RETARD: "fa-clock",
+      NON_DEMARRE: "fa-pause-circle",
+      INCIDENT: "fa-circle-exclamation",
     };
-
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {alertes.alertes.map((alerte, i) => {
-          const typeCfg = TYPE_CFG[alerte.type] || {
-            icon: "⚠️",
-            color: C.muted,
-          };
-          const niveauColor = alerte.niveau === "CRITIQUE" ? C.red : C.orange;
+          const isCrit = alerte.niveau === "CRITIQUE";
           return (
-            <Card key={i} accent={niveauColor}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: "flex", gap: 14, flex: 1 }}>
-                  <span style={{ fontSize: 24, lineHeight: 1 }}>
-                    {typeCfg.icon}
-                  </span>
-                  <div style={{ flex: 1 }}>
-                    <div
+            <div
+              key={i}
+              className="ds-card"
+              style={{
+                marginBottom: 0,
+                borderLeft: `3px solid ${isCrit ? "var(--ds-red)" : "var(--ds-amber)"}`,
+              }}
+            >
+              <div className="ds-card-body" style={{ padding: "16px 22px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 14, flex: 1 }}>
+                    <i
+                      className={`fas ${TYPE_ICON[alerte.type] || "fa-triangle-exclamation"}`}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginBottom: 4,
+                        fontSize: "1.2rem",
+                        color: isCrit ? "var(--ds-red)" : "var(--ds-amber)",
+                        marginTop: 2,
                       }}
-                    >
-                      <span
-                        style={{ fontWeight: 700, fontSize: 14, color: C.text }}
+                    ></i>
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 6,
+                        }}
                       >
-                        {alerte.message}
-                      </span>
-                      <Badge
-                        label={alerte.niveau}
-                        color={niveauColor}
-                        bg={alerte.niveau === "CRITIQUE" ? C.redLo : C.orangeLo}
-                      />
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            fontSize: ".86rem",
+                            color: "var(--ds-ink)",
+                          }}
+                        >
+                          {alerte.message}
+                        </span>
+                        <span
+                          className={`ds-badge ${isCrit ? "ds-badge-red" : "ds-badge-amber"}`}
+                        >
+                          {alerte.niveau}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: ".78rem",
+                          color: "var(--ds-ink-3)",
+                          background: "var(--ds-surface-2)",
+                          borderRadius: "var(--ds-radius)",
+                          padding: "6px 10px",
+                          borderLeft: "2px solid var(--ds-border-2)",
+                        }}
+                      >
+                        {alerte.action}
+                      </div>
                     </div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div
+                      className="mono"
                       style={{
-                        fontSize: 12,
-                        color: C.muted,
-                        background: C.surface,
-                        borderRadius: 8,
-                        padding: "6px 10px",
-                        marginTop: 6,
-                        borderLeft: `2px solid ${typeCfg.color}`,
+                        color: "var(--ds-ink-3)",
+                        fontSize: ".64rem",
+                        textTransform: "uppercase",
+                        letterSpacing: ".08em",
                       }}
                     >
-                      💡 {alerte.action}
+                      Ordre #{alerte.ordreId}
                     </div>
-                  </div>
-                </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: C.muted }}>Ordre</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
-                    #{alerte.ordreId}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                    CLR #{alerte.clrId}
+                    <div
+                      className="mono"
+                      style={{ color: "var(--ds-ink-3)", fontSize: ".64rem" }}
+                    >
+                      CLR #{alerte.clrId}
+                    </div>
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
     );
   };
 
-  // ── Onglet Regroupement ──────────────────────────────────────
+  // ── Regroupement ──────────────────────────────────────────────
   const renderRegroupement = () => {
     const { regroupement } = data;
-    if (regroupement.totalLignes === 0) {
+    if (regroupement.totalLignes === 0)
       return (
-        <Card style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.muted }}>
-            Aucune ligne disponible à regrouper
-          </div>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
-            Toutes les lignes planifiées ont déjà un ordre de transport
-          </div>
-        </Card>
-      );
-    }
-
-    return (
-      <div>
-        <div
-          style={{
-            background: C.surface,
-            borderRadius: 10,
-            padding: "12px 16px",
-            marginBottom: 20,
-            fontSize: 13,
-            color: C.muted,
-            border: `1px solid ${C.border}`,
-          }}
-        >
-          💡 <strong style={{ color: C.text }}>{regroupement.resume}</strong> —
-          Groupés par CLR de destination pour optimiser les chargements
+        <div className="ds-empty">
+          <i className="fas fa-inbox"></i>
+          <p>Aucune ligne disponible à regrouper</p>
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {regroupement.groupes.map((groupe, i) => {
-            const pCfg = PRIORITE_CFG[groupe.priorite] || PRIORITE_CFG.LOW;
-            const remplissageCouleur =
-              groupe.tauxRemplissage >= 85
-                ? C.green
-                : groupe.tauxRemplissage >= 50
-                  ? C.orange
-                  : C.red;
-
-            return (
-              <Card key={groupe.clrId} accent={pCfg.color}>
-                {/* Header */}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: 16,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <span style={{ fontSize: 18 }}>📍</span>
-                      <span
-                        style={{ fontWeight: 800, fontSize: 16, color: C.text }}
-                      >
-                        {groupe.clrNom || `CLR #${groupe.clrId}`}
-                      </span>
-                      <Badge
-                        label={groupe.clrCode}
-                        color={C.accent}
-                        bg={C.accentLo}
-                      />
-                      <Badge
-                        label={groupe.wilaya}
-                        color={C.muted}
-                        bg={C.surface}
-                      />
-                    </div>
-                    <div
-                      style={{ fontSize: 12, color: C.muted, marginLeft: 28 }}
-                    >
-                      {groupe.nbLignes} ligne(s) · {groupe.nbSessions}{" "}
-                      session(s) · {groupe.region}
-                    </div>
+      );
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {regroupement.groupes.map((g, i) => {
+          const pCfg = PRIORITE_CFG[g.priorite] || PRIORITE_CFG.LOW;
+          const remplissagePct = g.tauxRemplissage;
+          const remplissageCls =
+            remplissagePct >= 85
+              ? "var(--ds-green)"
+              : remplissagePct >= 50
+                ? "var(--ds-amber)"
+                : "var(--ds-red)";
+          return (
+            <div key={g.clrId} className="ds-card" style={{ marginBottom: 0 }}>
+              <div className="ds-card-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <i
+                    className="fas fa-location-dot"
+                    style={{ color: "var(--ds-red)" }}
+                  ></i>
+                  <div
+                    className="ds-card-title"
+                    style={{ textTransform: "none", fontSize: ".9rem" }}
+                  >
+                    {g.clrNom || `CLR #${g.clrId}`}
                   </div>
-                  <Badge label={pCfg.label} color={pCfg.color} bg={pCfg.bg} />
+                  <span
+                    className="mono"
+                    style={{ fontSize: ".68rem", color: "var(--ds-ink-3)" }}
+                  >
+                    {g.clrCode}
+                  </span>
+                  <span
+                    className="mono"
+                    style={{ fontSize: ".68rem", color: "var(--ds-ink-3)" }}
+                  >
+                    {g.wilaya}
+                  </span>
                 </div>
-
-                {/* Métriques */}
+                <span className={pCfg.badgeCls}>{pCfg.label}</span>
+              </div>
+              <div className="ds-card-body">
                 <div
                   style={{
                     display: "grid",
@@ -479,283 +355,271 @@ export default function TransportIntelligent() {
                 >
                   {[
                     {
-                      label: "Qté totale",
-                      value: `${groupe.qteTotale} pal.`,
-                      color: C.text,
+                      lbl: "Qté totale",
+                      val: `${g.qteTotale} pal.`,
+                      color: "var(--ds-ink)",
                     },
                     {
-                      label: "Délai estimé",
-                      value: groupe.delaiEstime,
-                      color: C.accent,
+                      lbl: "Délai estimé",
+                      val: g.delaiEstime,
+                      color: "var(--ds-blue)",
                     },
                     {
-                      label: "Coût estimé",
-                      value: `${groupe.coutEstimeDZD.toLocaleString("fr-DZ")} DA`,
-                      color: C.yellow,
+                      lbl: "Coût estimé",
+                      val: `${g.coutEstimeDZD?.toLocaleString("fr-DZ")} DA`,
+                      color: "var(--ds-amber)",
                     },
                   ].map((m) => (
                     <div
-                      key={m.label}
+                      key={m.lbl}
                       style={{
-                        background: C.surface,
-                        borderRadius: 8,
+                        background: "var(--ds-surface-2)",
+                        borderRadius: "var(--ds-radius)",
                         padding: "10px 14px",
-                        border: `1px solid ${C.border}`,
+                        border: "1px solid var(--ds-border)",
                       }}
                     >
                       <div
                         style={{
-                          fontSize: 11,
-                          color: C.muted,
+                          fontSize: ".6rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: ".08em",
+                          color: "var(--ds-ink-3)",
                           marginBottom: 4,
                         }}
                       >
-                        {m.label}
+                        {m.lbl}
                       </div>
                       <div
                         style={{
-                          fontSize: 14,
+                          fontSize: ".92rem",
                           fontWeight: 700,
                           color: m.color,
+                          fontFamily: "var(--ds-mono)",
                         }}
                       >
-                        {m.value}
+                        {m.val}
                       </div>
                     </div>
                   ))}
                 </div>
-
-                {/* Taux remplissage */}
                 <div style={{ marginBottom: 10 }}>
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      fontSize: 11,
-                      color: C.muted,
-                      marginBottom: 6,
+                      fontSize: ".68rem",
+                      color: "var(--ds-ink-3)",
+                      marginBottom: 5,
                     }}
                   >
                     <span>Taux de remplissage camion</span>
-                    <span
-                      style={{ color: remplissageCouleur, fontWeight: 700 }}
-                    >
-                      {groupe.tauxRemplissage}%
+                    <span style={{ fontWeight: 700, color: remplissageCls }}>
+                      {remplissagePct}%
                     </span>
                   </div>
-                  <ScoreBar
-                    value={groupe.tauxRemplissage}
-                    color={remplissageCouleur}
-                  />
+                  <ScoreBar value={remplissagePct} color={remplissageCls} />
                 </div>
-
-                {/* Recommandation */}
                 <div
                   style={{
-                    fontSize: 12,
-                    color: C.text,
-                    background: C.bg,
-                    borderRadius: 8,
+                    fontSize: ".78rem",
+                    color: "var(--ds-ink-2)",
+                    background: "var(--ds-surface-2)",
+                    borderRadius: "var(--ds-radius)",
                     padding: "8px 12px",
-                    borderLeft: `2px solid ${pCfg.color}`,
+                    borderLeft: "2px solid var(--ds-border-2)",
                   }}
                 >
-                  {groupe.recommandation}
+                  {g.recommandation}
                 </div>
-              </Card>
-            );
-          })}
-        </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
 
-  // ── Onglet Prestataires ──────────────────────────────────────
+  // ── Prestataires ──────────────────────────────────────────────
   const renderPrestataires = () => {
     const { prestataires } = data;
-
-    if (prestataires.prestataires.length === 0) {
+    if (!prestataires.prestataires?.length)
       return (
-        <Card style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.muted }}>
-            Aucun historique prestataire
-          </div>
-          <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
-            Les scores apparaîtront après les premières livraisons confirmées
-          </div>
-        </Card>
+        <div className="ds-empty">
+          <i className="fas fa-ranking-star"></i>
+          <p>
+            Aucun historique prestataire — les scores apparaîtront après les
+            premières livraisons confirmées
+          </p>
+        </div>
       );
-    }
-
     return (
       <div>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+        <div
+          style={{
+            fontSize: ".72rem",
+            color: "var(--ds-ink-3)",
+            marginBottom: 16,
+          }}
+        >
           Analyse sur : {prestataires.fenetre}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {prestataires.prestataires.map((p, i) => {
             const nvCfg = NIVEAU_CFG[p.niveau] || NIVEAU_CFG.INSUFFISANT;
             return (
-              <Card key={p.nom} accent={nvCfg.color}>
-                <div
-                  style={{ display: "flex", alignItems: "flex-start", gap: 16 }}
-                >
-                  {/* Rang */}
+              <div key={p.nom} className="ds-card" style={{ marginBottom: 0 }}>
+                <div className="ds-card-body">
                   <div
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      background: i === 0 ? C.yellowLo : C.surface,
-                      border: `2px solid ${i === 0 ? C.yellow : C.border}`,
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 14,
-                      fontWeight: 800,
-                      color: i === 0 ? C.yellow : C.muted,
-                      flexShrink: 0,
+                      alignItems: "flex-start",
+                      gap: 16,
                     }}
                   >
-                    {i === 0 ? "🥇" : `#${i + 1}`}
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    {/* Nom + badge */}
                     <div
                       style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        background: "var(--ds-surface-2)",
+                        border: "2px solid var(--ds-border)",
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
-                        marginBottom: 12,
+                        justifyContent: "center",
+                        fontSize: ".78rem",
+                        fontWeight: 800,
+                        color: "var(--ds-ink-2)",
+                        flexShrink: 0,
                       }}
                     >
-                      <span
-                        style={{ fontWeight: 700, fontSize: 15, color: C.text }}
-                      >
-                        {p.nom}
-                      </span>
-                      <Badge
-                        label={p.niveau}
-                        color={nvCfg.color}
-                        bg={nvCfg.bg}
-                      />
-                      {p.recommande && (
-                        <Badge
-                          label="✓ Recommandé"
-                          color={C.green}
-                          bg={C.greenLo}
-                        />
-                      )}
+                      {i === 0 ? "🥇" : `#${i + 1}`}
                     </div>
-
-                    {/* Score global */}
-                    <div style={{ marginBottom: 10 }}>
+                    <div style={{ flex: 1 }}>
                       <div
                         style={{
-                          fontSize: 11,
-                          color: C.muted,
-                          marginBottom: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 10,
                         }}
                       >
-                        Score global
-                      </div>
-                      <ScoreBar value={p.score} color={nvCfg.color} />
-                    </div>
-
-                    {/* Métriques détail */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(4, 1fr)",
-                        gap: 8,
-                      }}
-                    >
-                      {[
-                        { label: "Missions", value: p.nbMissions },
-                        { label: "Livraisons", value: `${p.tauxLivraison}%` },
-                        {
-                          label: "Ponctualité",
-                          value: `${p.tauxPonctualite}%`,
-                        },
-                        {
-                          label: "Délai moyen",
-                          value:
-                            p.delaiMoyenH != null ? `${p.delaiMoyenH}h` : "N/A",
-                        },
-                      ].map((m) => (
-                        <div
-                          key={m.label}
+                        <span
                           style={{
-                            background: C.surface,
-                            borderRadius: 8,
-                            padding: "8px 10px",
-                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: ".9rem",
+                            color: "var(--ds-ink)",
                           }}
                         >
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: C.text,
-                            }}
-                          >
-                            {m.value}
-                          </div>
-                          <div style={{ fontSize: 10, color: C.muted }}>
-                            {m.label}
-                          </div>
+                          {p.nom}
+                        </span>
+                        <span className={nvCfg.badgeCls}>{p.niveau}</span>
+                        {p.recommande && (
+                          <span className="ds-badge ds-badge-green">
+                            ✓ Recommandé
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <div
+                          style={{
+                            fontSize: ".62rem",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: ".08em",
+                            color: "var(--ds-ink-3)",
+                            marginBottom: 5,
+                          }}
+                        >
+                          Score global
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Incidents */}
-                    {p.nbIncidents > 0 && (
+                        <ScoreBar value={p.score} color={nvCfg.barColor} />
+                      </div>
                       <div
                         style={{
-                          marginTop: 10,
-                          fontSize: 12,
-                          color: C.red,
-                          background: C.redLo,
-                          borderRadius: 8,
-                          padding: "6px 10px",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(4, 1fr)",
+                          gap: 8,
                         }}
                       >
-                        ⚠ {p.nbIncidents} incident(s) sur la période
+                        {[
+                          { lbl: "Missions", val: p.nbMissions },
+                          { lbl: "Livraisons", val: `${p.tauxLivraison}%` },
+                          { lbl: "Ponctualité", val: `${p.tauxPonctualite}%` },
+                          {
+                            lbl: "Délai moy.",
+                            val:
+                              p.delaiMoyenH != null
+                                ? `${p.delaiMoyenH}h`
+                                : "N/A",
+                          },
+                        ].map((m) => (
+                          <div
+                            key={m.lbl}
+                            style={{
+                              background: "var(--ds-surface-2)",
+                              borderRadius: "var(--ds-radius)",
+                              padding: "8px 10px",
+                              textAlign: "center",
+                              border: "1px solid var(--ds-border)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: ".86rem",
+                                fontWeight: 700,
+                                color: "var(--ds-ink)",
+                                fontFamily: "var(--ds-mono)",
+                              }}
+                            >
+                              {m.val}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: ".6rem",
+                                color: "var(--ds-ink-3)",
+                                marginTop: 2,
+                              }}
+                            >
+                              {m.lbl}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
+                      {p.nbIncidents > 0 && (
+                        <div
+                          className="ds-alert ds-alert-error"
+                          style={{ marginTop: 10 }}
+                        >
+                          <i
+                            className="fas fa-triangle-exclamation"
+                            style={{ flexShrink: 0 }}
+                          ></i>
+                          <span>
+                            {p.nbIncidents} incident(s) sur la période
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </Card>
+              </div>
             );
           })}
         </div>
-
-        {/* Prestataires à risque */}
-        {prestataires.aRisque.length > 0 && (
-          <div
-            style={{
-              marginTop: 20,
-              background: C.redLo,
-              border: `1px solid ${C.red}30`,
-              borderRadius: 12,
-              padding: 16,
-            }}
-          >
-            <div
-              style={{
-                fontWeight: 700,
-                color: C.red,
-                fontSize: 13,
-                marginBottom: 4,
-              }}
-            >
-              ⚠ Prestataires à éviter :{" "}
+        {prestataires.aRisque?.length > 0 && (
+          <div className="ds-alert ds-alert-error" style={{ marginTop: 16 }}>
+            <i
+              className="fas fa-triangle-exclamation"
+              style={{ flexShrink: 0 }}
+            ></i>
+            <div>
+              <strong>Prestataires à éviter :</strong>{" "}
               {prestataires.aRisque.map((p) => p.nom).join(", ")}
-            </div>
-            <div style={{ fontSize: 12, color: C.muted }}>
-              Score inférieur à 40 — considérer des alternatives
+              <div style={{ marginTop: 2, fontSize: ".76rem" }}>
+                Score inférieur à 40 — considérer des alternatives
+              </div>
             </div>
           </div>
         )}
@@ -763,332 +627,297 @@ export default function TransportIntelligent() {
     );
   };
 
-  // ── Onglet Performance ───────────────────────────────────────
+  // ── Performance ───────────────────────────────────────────────
   const renderPerformance = () => {
     const { performance } = data;
     const kpi = performance.kpi;
-    const tendanceCfg =
-      NIVEAU_CFG[performance.tendance] || NIVEAU_CFG.INSUFFISANT;
-
-    const TENDANCE_LABEL = {
-      EXCELLENT: "🏆 Excellent",
-      BON: "✅ Bon",
-      MOYEN: "⚠ Moyen",
-      A_AMELIORER: "📉 À améliorer",
-      INSUFFISANT: "— Insuffisant",
-    };
-
+    const nvCfg = NIVEAU_CFG[performance.tendance] || NIVEAU_CFG.INSUFFISANT;
     return (
       <div>
         {/* Tendance globale */}
-        <Card
-          accent={tendanceCfg.color}
-          style={{
-            marginBottom: 20,
-            display: "flex",
-            alignItems: "center",
-            gap: 20,
-          }}
-        >
-          <div style={{ fontSize: 40 }}>📊</div>
-          <div>
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: tendanceCfg.color,
-              }}
-            >
-              {TENDANCE_LABEL[performance.tendance] || performance.tendance}
-            </div>
-            <div style={{ fontSize: 13, color: C.muted }}>
-              Analyse sur {performance.periode}
+        <div className="ds-card">
+          <div
+            className="ds-card-body"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 20,
+              padding: "18px 22px",
+            }}
+          >
+            <i
+              className="fas fa-chart-line"
+              style={{ fontSize: "1.6rem", color: nvCfg.barColor }}
+            ></i>
+            <div>
+              <div
+                style={{
+                  fontSize: "1.3rem",
+                  fontWeight: 800,
+                  color: nvCfg.barColor,
+                  fontFamily: "'Playfair Display', serif",
+                }}
+              >
+                {TENDANCE_LABEL[performance.tendance] || performance.tendance}
+              </div>
+              <div style={{ fontSize: ".76rem", color: "var(--ds-ink-3)" }}>
+                Analyse sur {performance.periode}
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
 
-        {/* KPI grid */}
+        {/* KPIs */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 14,
-            marginBottom: 20,
+            gap: 12,
+            marginBottom: 16,
           }}
         >
           {[
             {
-              label: "Total ordres",
-              value: kpi.totalOrdres,
-              icon: "📋",
-              color: C.text,
+              lbl: "Total ordres",
+              val: kpi.totalOrdres,
+              icon: "fa-clipboard-list",
+              cls: "",
             },
             {
-              label: "Ordres livrés",
-              value: kpi.ordresLivres,
-              icon: "✅",
-              color: C.green,
+              lbl: "Ordres livrés",
+              val: kpi.ordresLivres,
+              icon: "fa-check-circle",
+              cls: "green",
             },
             {
-              label: "En cours",
-              value: kpi.ordresEnCours,
-              icon: "🚛",
-              color: C.accent,
+              lbl: "En cours",
+              val: kpi.ordresEnCours,
+              icon: "fa-truck",
+              cls: "blue",
             },
             {
-              label: "Incidents",
-              value: kpi.ordresIncidents,
-              icon: "🔴",
-              color: C.red,
+              lbl: "Incidents",
+              val: kpi.ordresIncidents,
+              icon: "fa-circle-xmark",
+              cls: "red",
             },
             {
-              label: "Taux de service",
-              value: kpi.tauxService,
-              icon: "📈",
-              color: tendanceCfg.color,
+              lbl: "Taux de service",
+              val: kpi.tauxService,
+              icon: "fa-chart-line",
+              cls: "",
             },
             {
-              label: "Taux ponctualité",
-              value: kpi.tauxPonctualite,
-              icon: "⏱",
-              color: C.yellow,
+              lbl: "Ponctualité",
+              val: kpi.tauxPonctualite,
+              icon: "fa-stopwatch",
+              cls: "amber",
             },
           ].map((k) => (
-            <Card key={k.label} style={{ padding: "16px 20px" }}>
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{k.icon}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>
-                {fmt(k.value)}
+            <div key={k.lbl} className="ds-card" style={{ marginBottom: 0 }}>
+              <div className="ds-card-body" style={{ padding: "16px 20px" }}>
+                <i
+                  className={`fas ${k.icon} ds-kpi-icon`}
+                  style={{
+                    position: "static",
+                    opacity: 0.15,
+                    fontSize: "1.1rem",
+                    display: "block",
+                    marginBottom: 6,
+                  }}
+                ></i>
+                <div
+                  className={`ds-kpi-val ${k.cls}`}
+                  style={{ fontSize: "1.4rem" }}
+                >
+                  {fmt(k.val)}
+                </div>
+                <div className="ds-kpi-lbl" style={{ marginTop: 4 }}>
+                  {k.lbl}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-                {k.label}
-              </div>
-            </Card>
+            </div>
           ))}
         </div>
 
-        {/* Métriques secondaires */}
-        <Card>
+        {/* Secondaires */}
+        <div className="ds-card">
+          <div className="ds-card-head">
+            <div className="ds-card-title">
+              <span className="ds-card-dot"></span>Métriques secondaires
+            </div>
+          </div>
           <div
+            className="ds-card-body"
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}
           >
             <div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
+              <div
+                style={{
+                  fontSize: ".68rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: ".08em",
+                  color: "var(--ds-ink-3)",
+                  marginBottom: 4,
+                }}
+              >
                 Délai moyen de livraison
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: C.accent }}>
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  fontWeight: 700,
+                  color: "var(--ds-blue)",
+                  fontFamily: "var(--ds-mono)",
+                }}
+              >
                 {kpi.delaiMoyenH != null ? `${kpi.delaiMoyenH}h` : "N/A"}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>
+              <div
+                style={{
+                  fontSize: ".68rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: ".08em",
+                  color: "var(--ds-ink-3)",
+                  marginBottom: 4,
+                }}
+              >
                 Ordres en retard
               </div>
               <div
                 style={{
-                  fontSize: 20,
+                  fontSize: "1.4rem",
                   fontWeight: 700,
-                  color: kpi.ordresEnRetard > 0 ? C.red : C.green,
+                  fontFamily: "var(--ds-mono)",
+                  color:
+                    kpi.ordresEnRetard > 0
+                      ? "var(--ds-red)"
+                      : "var(--ds-green)",
                 }}
               >
                 {kpi.ordresEnRetard}
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
     );
   };
 
-  // ════════════════════════════════════════════════════════════════
-  // RENDER PRINCIPAL
-  // ════════════════════════════════════════════════════════════════
   return (
     <ModuleGate module="TRANSPORT_INTEL">
-      <div
-        style={{
-          minHeight: "100vh",
-          background: C.bg,
-          color: C.text,
-          fontFamily: "'Inter', 'Segoe UI', sans-serif",
-          fontSize: 14,
-        }}
-      >
-        <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #252a38; border-radius: 3px; }
-      `}</style>
+      <div className="ds-layout">
+        <style dangerouslySetInnerHTML={{ __html: DS_STYLE }} />
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+        />
 
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
-          {/* ── Header ─────────────────────────────────────────── */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              marginBottom: 28,
-            }}
-          >
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 26,
-                  fontWeight: 800,
-                  color: C.text,
-                }}
-              >
-                🧠 Transport Intelligent
-              </h1>
-              <p style={{ margin: "4px 0 0", color: C.muted, fontSize: 13 }}>
-                Suggestions de regroupement · Scoring prestataires · Alertes
-                proactives
-                {lastRefresh && (
-                  <span style={{ marginLeft: 12, color: C.border }}>
-                    Actualisé {lastRefresh.toLocaleTimeString("fr-DZ")}
-                  </span>
-                )}
-              </p>
-            </div>
-            <button
-              onClick={load}
-              disabled={loading}
-              style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                padding: "8px 16px",
-                color: C.text,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.5 : 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  animation: loading ? "spin 1s linear infinite" : "none",
-                }}
-              >
-                ⟳
-              </span>
-              Actualiser
-            </button>
-          </div>
-
-          {/* ── Chargement ─────────────────────────────────────── */}
-          {loading && <Spinner />}
-
-          {/* ── Erreur ─────────────────────────────────────────── */}
-          {!loading && error && (
+        <div className="ds-main">
+          {/* Page header */}
+          <div className="ds-page-header">
+            <div className="ds-eyebrow">Module transport</div>
             <div
               style={{
-                background: C.redLo,
-                border: `1px solid ${C.red}40`,
-                borderRadius: 12,
-                padding: 24,
-                textAlign: "center",
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "space-between",
               }}
             >
-              <div style={{ fontSize: 32, marginBottom: 8 }}>⚠</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: C.red }}>
-                {error}
+              <div>
+                <h1 className="ds-page-title">
+                  Transport <span>Intelligent</span>
+                </h1>
+                <p className="ds-page-sub">
+                  Suggestions de regroupement · Scoring prestataires · Alertes
+                  proactives
+                  {lastRefresh && (
+                    <span style={{ marginLeft: 12 }}>
+                      — Actualisé {lastRefresh.toLocaleTimeString("fr-DZ")}
+                    </span>
+                  )}
+                </p>
               </div>
               <button
+                className="ds-btn ds-btn-outline ds-btn-sm"
                 onClick={load}
-                style={{
-                  marginTop: 16,
-                  background: C.red,
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 20px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
+                disabled={loading}
               >
-                Réessayer
+                <i
+                  className={`fas ${loading ? "fa-spinner fa-spin" : "fa-rotate-right"}`}
+                ></i>{" "}
+                Actualiser
               </button>
             </div>
-          )}
+          </div>
 
-          {/* ── Contenu ─────────────────────────────────────────── */}
-          {!loading && !error && data && (
-            <div style={{ animation: "fadeIn 0.3s ease" }}>
-              {/* Résumé exécutif */}
-              {renderResume()}
+          {/* KPI strip */}
+          {data && renderResume()}
 
-              {/* Onglets */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 4,
-                  marginBottom: 24,
-                  borderBottom: `1px solid ${C.border}`,
-                  paddingBottom: 0,
-                }}
+          {/* Tabs */}
+          <div className="ds-tabs">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={`ds-tab ${tab === t.id ? "active" : ""}`}
+                onClick={() => setTab(t.id)}
               >
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: "8px 8px 0 0",
-                      border: "none",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      position: "relative",
-                      background: tab === t.id ? C.card : "transparent",
-                      color: tab === t.id ? C.text : C.muted,
-                      borderBottom:
-                        tab === t.id
-                          ? `2px solid ${C.accent}`
-                          : "2px solid transparent",
-                      transition: "all .15s",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
+                <i className={`fas ${t.icon}`}></i>
+                {t.label}
+                {t.badge > 0 && (
+                  <span
+                    className={`ds-tab-badge${t.badgeType === "amber" ? " neutral" : ""}`}
                   >
-                    {t.label}
-                    {t.badge > 0 && (
-                      <span
-                        style={{
-                          background: t.badgeColor,
-                          color: "#fff",
-                          borderRadius: 10,
-                          padding: "1px 7px",
-                          fontSize: 10,
-                          fontWeight: 800,
-                        }}
-                      >
-                        {t.badge}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
-              {/* Contenu onglet */}
-              <div>
+          {/* Content */}
+          <div className="ds-content">
+            {loading && (
+              <div className="ds-loading">
+                <i
+                  className="fas fa-spinner fa-spin"
+                  style={{ marginRight: 8 }}
+                ></i>{" "}
+                Analyse en cours…
+              </div>
+            )}
+            {!loading && error && (
+              <div className="ds-alert ds-alert-error">
+                <i
+                  className="fas fa-triangle-exclamation"
+                  style={{ flexShrink: 0 }}
+                ></i>
+                <div>
+                  <strong>{error}</strong>
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      className="ds-btn ds-btn-red ds-btn-sm"
+                      onClick={load}
+                    >
+                      Réessayer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {!loading && !error && data && (
+              <>
                 {tab === "alertes" && renderAlertes()}
                 {tab === "regroupement" && renderRegroupement()}
                 {tab === "prestataires" && renderPrestataires()}
                 {tab === "performance" && renderPerformance()}
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </ModuleGate>

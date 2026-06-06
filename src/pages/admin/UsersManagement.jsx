@@ -1,161 +1,44 @@
-// pages/admin/UsersManagement.jsx — Sprint 8
+// pages/admin/UsersManagement.jsx — Sprint 8 — Redesign blanc épuré
 import { useState, useEffect } from "react";
 import api from "../../utils/api";
 import { useToast } from "../../context/ToastContext";
+import { DS_STYLE } from "../design-system";
 
 const ROLES = [
-  { value: "admin", label: "Administrateur", color: "#ef4444" },
-  { value: "planification", label: "Planification", color: "#3b82f6" },
-  { value: "transport", label: "Transport", color: "#f59e0b" },
-  { value: "keep_contact", label: "Keep Contact", color: "#10b981" },
-  { value: "prestataire", label: "Prestataire", color: "#8b5cf6" },
-  { value: "client", label: "Client", color: "#06b6d4" },
+  {
+    value: "admin",
+    label: "Administrateur",
+    badgeCls: "ds-badge ds-badge-red",
+  },
+  {
+    value: "planification",
+    label: "Planification",
+    badgeCls: "ds-badge ds-badge-blue",
+  },
+  {
+    value: "transport",
+    label: "Transport",
+    badgeCls: "ds-badge ds-badge-amber",
+  },
+  {
+    value: "keep_contact",
+    label: "Keep Contact",
+    badgeCls: "ds-badge ds-badge-green",
+  },
+  {
+    value: "prestataire",
+    label: "Prestataire",
+    badgeCls: "ds-badge ds-badge-purple",
+  },
+  { value: "client", label: "Client", badgeCls: "ds-badge ds-badge-neutral" },
 ];
 
-const getRoleStyle = (role) => {
-  const r = ROLES.find((r) => r.value === role);
-  return r
-    ? { background: r.color + "22", color: r.color }
-    : { background: "#374151", color: "#9ca3af" };
-};
+const getRoleBadgeCls = (role) =>
+  ROLES.find((r) => r.value === role)?.badgeCls || "ds-badge ds-badge-neutral";
+const getRoleLabel = (role) =>
+  ROLES.find((r) => r.value === role)?.label || role;
 
-const S = {
-  page: { padding: "32px", color: "#e5e7eb", minHeight: "100vh" },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "28px",
-    flexWrap: "wrap",
-    gap: "12px",
-  },
-  title: { fontSize: "24px", fontWeight: 700, color: "#fff", margin: 0 },
-  sub: { color: "#9ca3af", marginTop: "4px", fontSize: "14px" },
-  btnPrimary: {
-    background: "#3b82f6",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    padding: "10px 18px",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: "14px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  card: {
-    background: "#181c27",
-    borderRadius: "12px",
-    border: "1px solid #2d3748",
-    overflow: "hidden",
-  },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    padding: "12px 16px",
-    textAlign: "left",
-    fontSize: "12px",
-    fontWeight: 600,
-    color: "#6b7280",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    borderBottom: "1px solid #2d3748",
-  },
-  td: {
-    padding: "14px 16px",
-    fontSize: "14px",
-    borderBottom: "1px solid #1f2937",
-  },
-  badge: {
-    display: "inline-block",
-    padding: "3px 10px",
-    borderRadius: "20px",
-    fontSize: "12px",
-    fontWeight: 600,
-  },
-  actionBtn: {
-    background: "transparent",
-    border: "1px solid #2d3748",
-    borderRadius: "6px",
-    padding: "5px 10px",
-    fontSize: "12px",
-    cursor: "pointer",
-    color: "#9ca3af",
-  },
-  // Modal
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.7)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
-    padding: "16px",
-  },
-  modal: {
-    background: "#181c27",
-    borderRadius: "16px",
-    border: "1px solid #2d3748",
-    padding: "28px",
-    width: "100%",
-    maxWidth: "480px",
-  },
-  modalTitle: {
-    fontSize: "18px",
-    fontWeight: 700,
-    color: "#fff",
-    marginBottom: "20px",
-  },
-  label: {
-    display: "block",
-    fontSize: "13px",
-    color: "#9ca3af",
-    marginBottom: "6px",
-    fontWeight: 500,
-  },
-  input: {
-    width: "100%",
-    background: "#0f1117",
-    border: "1px solid #374151",
-    borderRadius: "8px",
-    padding: "10px 14px",
-    color: "#fff",
-    fontSize: "14px",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  select: {
-    width: "100%",
-    background: "#0f1117",
-    border: "1px solid #374151",
-    borderRadius: "8px",
-    padding: "10px 14px",
-    color: "#fff",
-    fontSize: "14px",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  formGroup: { marginBottom: "16px" },
-  modalActions: {
-    display: "flex",
-    gap: "10px",
-    justifyContent: "flex-end",
-    marginTop: "24px",
-  },
-  btnSecondary: {
-    background: "transparent",
-    color: "#9ca3af",
-    border: "1px solid #374151",
-    borderRadius: "8px",
-    padding: "10px 18px",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: "14px",
-  },
-};
-
-// Modal d'invitation
+// ── Modal Invitation ─────────────────────────────────────────
 function InviteModal({ onClose, onSuccess }) {
   const { toast } = useToast();
   const [form, setForm] = useState({
@@ -167,32 +50,28 @@ function InviteModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.email || !form.role)
-      return toast.error("Email et rôle requis", "error");
+    if (!form.email || !form.role) return toast.error("Email et rôle requis");
     setLoading(true);
     try {
       await api.post("/admin/users/invite", form);
-      toast.success("Invitation envoyée avec succès", "success");
+      toast.success("Invitation envoyée avec succès");
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(
-        err.response?.data?.error || "Erreur lors de l'invitation",
-        "error",
-      );
+      toast.error(err.response?.data?.error || "Erreur lors de l'invitation");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={S.modalTitle}>
+    <div className="ds-overlay" onClick={onClose}>
+      <div className="ds-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ds-modal-title">
           <i
-            className="fa-solid fa-user-plus"
-            style={{ color: "#3b82f6", marginRight: "8px" }}
-          />
+            className="fas fa-user-plus"
+            style={{ color: "var(--ds-blue)", fontSize: "1.1rem" }}
+          ></i>
           Inviter un utilisateur
         </div>
 
@@ -200,13 +79,14 @@ function InviteModal({ onClose, onSuccess }) {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: "12px",
+            gap: 12,
+            marginBottom: 12,
           }}
         >
-          <div style={S.formGroup}>
-            <label style={S.label}>Prénom</label>
+          <div className="ds-field">
+            <label className="ds-label">Prénom</label>
             <input
-              style={S.input}
+              className="ds-input"
               value={form.prenom}
               onChange={(e) =>
                 setForm((p) => ({ ...p, prenom: e.target.value }))
@@ -214,10 +94,10 @@ function InviteModal({ onClose, onSuccess }) {
               placeholder="Jean"
             />
           </div>
-          <div style={S.formGroup}>
-            <label style={S.label}>Nom</label>
+          <div className="ds-field">
+            <label className="ds-label">Nom</label>
             <input
-              style={S.input}
+              className="ds-input"
               value={form.nom}
               onChange={(e) => setForm((p) => ({ ...p, nom: e.target.value }))}
               placeholder="Dupont"
@@ -225,10 +105,12 @@ function InviteModal({ onClose, onSuccess }) {
           </div>
         </div>
 
-        <div style={S.formGroup}>
-          <label style={S.label}>Email *</label>
+        <div className="ds-field" style={{ marginBottom: 12 }}>
+          <label className="ds-label">
+            Email <span style={{ color: "var(--ds-red)" }}>*</span>
+          </label>
           <input
-            style={S.input}
+            className="ds-input"
             type="email"
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
@@ -236,10 +118,12 @@ function InviteModal({ onClose, onSuccess }) {
           />
         </div>
 
-        <div style={S.formGroup}>
-          <label style={S.label}>Rôle *</label>
+        <div className="ds-field" style={{ marginBottom: 16 }}>
+          <label className="ds-label">
+            Rôle <span style={{ color: "var(--ds-red)" }}>*</span>
+          </label>
           <select
-            style={S.select}
+            className="ds-select"
             value={form.role}
             onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
           >
@@ -251,36 +135,27 @@ function InviteModal({ onClose, onSuccess }) {
           </select>
         </div>
 
-        <div
-          style={{
-            background: "#0f1117",
-            borderRadius: "8px",
-            padding: "12px",
-            fontSize: "13px",
-            color: "#6b7280",
-          }}
-        >
-          <i
-            className="fa-solid fa-circle-info"
-            style={{ color: "#3b82f6", marginRight: "6px" }}
-          />
-          Un email d'activation sera envoyé à l'adresse indiquée (si SMTP
-          configuré).
+        <div className="ds-alert ds-alert-info" style={{ marginTop: 0 }}>
+          <i className="fas fa-circle-info" style={{ flexShrink: 0 }}></i>
+          <span>
+            Un email d'activation sera envoyé à l'adresse indiquée (si SMTP
+            configuré).
+          </span>
         </div>
 
-        <div style={S.modalActions}>
-          <button style={S.btnSecondary} onClick={onClose}>
+        <div className="ds-modal-actions">
+          <button className="ds-btn ds-btn-outline" onClick={onClose}>
             Annuler
           </button>
           <button
-            style={S.btnPrimary}
+            className="ds-btn ds-btn-primary"
             onClick={handleSubmit}
             disabled={loading}
           >
             {loading ? (
-              <i className="fa-solid fa-circle-notch fa-spin" />
+              <i className="fas fa-spinner fa-spin"></i>
             ) : (
-              <i className="fa-solid fa-paper-plane" />
+              <i className="fas fa-paper-plane"></i>
             )}
             Envoyer l'invitation
           </button>
@@ -290,7 +165,7 @@ function InviteModal({ onClose, onSuccess }) {
   );
 }
 
-// Modal changement de rôle
+// ── Modal Changement de rôle ──────────────────────────────────
 function ChangeRoleModal({ user, onClose, onSuccess }) {
   const { toast } = useToast();
   const [role, setRole] = useState(user.role);
@@ -300,36 +175,51 @@ function ChangeRoleModal({ user, onClose, onSuccess }) {
     setLoading(true);
     try {
       await api.put(`/admin/users/${user.id}/role`, { role });
-      toast.success("Rôle mis à jour", "success");
+      toast.success("Rôle mis à jour");
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Erreur", "error");
+      toast.error(err.response?.data?.error || "Erreur");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={S.modalTitle}>
+    <div className="ds-overlay" onClick={onClose}>
+      <div className="ds-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="ds-modal-title">
           <i
-            className="fa-solid fa-user-gear"
-            style={{ color: "#f59e0b", marginRight: "8px" }}
-          />
+            className="fas fa-user-gear"
+            style={{ color: "var(--ds-amber)", fontSize: "1.1rem" }}
+          ></i>
           Changer le rôle
         </div>
-        <p style={{ color: "#9ca3af", marginBottom: "20px", fontSize: "14px" }}>
+        <p
+          style={{
+            fontSize: ".84rem",
+            color: "var(--ds-ink-2)",
+            marginBottom: 20,
+          }}
+        >
           Utilisateur :{" "}
-          <strong style={{ color: "#fff" }}>
-            {user.prenom} {user.nom} ({user.email})
+          <strong style={{ color: "var(--ds-ink)" }}>
+            {user.prenom} {user.nom}
           </strong>
+          <span
+            style={{
+              display: "block",
+              fontSize: ".78rem",
+              color: "var(--ds-ink-3)",
+            }}
+          >
+            {user.email}
+          </span>
         </p>
-        <div style={S.formGroup}>
-          <label style={S.label}>Nouveau rôle</label>
+        <div className="ds-field" style={{ marginBottom: 16 }}>
+          <label className="ds-label">Nouveau rôle</label>
           <select
-            style={S.select}
+            className="ds-select"
             value={role}
             onChange={(e) => setRole(e.target.value)}
           >
@@ -340,19 +230,16 @@ function ChangeRoleModal({ user, onClose, onSuccess }) {
             ))}
           </select>
         </div>
-        <div style={S.modalActions}>
-          <button style={S.btnSecondary} onClick={onClose}>
+        <div className="ds-modal-actions">
+          <button className="ds-btn ds-btn-outline" onClick={onClose}>
             Annuler
           </button>
           <button
-            style={{ ...S.btnPrimary, background: "#f59e0b" }}
+            className="ds-btn ds-btn-red"
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? (
-              <i className="fa-solid fa-circle-notch fa-spin" />
-            ) : null}
-            Confirmer
+            {loading && <i className="fas fa-spinner fa-spin"></i>} Confirmer
           </button>
         </div>
       </div>
@@ -360,12 +247,15 @@ function ChangeRoleModal({ user, onClose, onSuccess }) {
   );
 }
 
+// ════════════════════════════════════════════════════════════════
+// COMPOSANT PRINCIPAL
+// ════════════════════════════════════════════════════════════════
 export default function UsersManagement() {
   const { toast } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
-  const [roleModal, setRoleModal] = useState(null); // user object
+  const [roleModal, setRoleModal] = useState(null);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("");
 
@@ -375,7 +265,7 @@ export default function UsersManagement() {
       const res = await api.get("/admin/users");
       setUsers(res.data);
     } catch {
-      toast.error("Erreur chargement utilisateurs", "error");
+      toast.error("Erreur chargement utilisateurs");
     } finally {
       setLoading(false);
     }
@@ -391,27 +281,37 @@ export default function UsersManagement() {
     try {
       if (user.actif) {
         await api.delete(`/admin/users/${user.id}`);
-        toast.success("Utilisateur désactivé", "success");
+        toast.success("Utilisateur désactivé");
       } else {
         await api.put(`/admin/users/${user.id}/reactivate`);
-        toast.success("Utilisateur réactivé", "success");
+        toast.success("Utilisateur réactivé");
       }
       loadUsers();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Erreur", "error");
+      toast.error(err.response?.data?.error || "Erreur");
     }
   };
 
   const filtered = users.filter((u) => {
     const matchSearch =
       !search ||
-      `${u.name} ${u.email}`.toLowerCase().includes(search.toLowerCase());
+      `${u.nom} ${u.prenom} ${u.email}`
+        .toLowerCase()
+        .includes(search.toLowerCase());
     const matchRole = !filterRole || u.role === filterRole;
     return matchSearch && matchRole;
   });
 
+  const actifs = users.filter((u) => u.actif).length;
+
   return (
-    <div style={S.page}>
+    <div className="ds-layout">
+      <style dangerouslySetInnerHTML={{ __html: DS_STYLE }} />
+      <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      />
+
       {showInvite && (
         <InviteModal
           onClose={() => setShowInvite(false)}
@@ -426,191 +326,282 @@ export default function UsersManagement() {
         />
       )}
 
-      <div style={S.header}>
-        <div>
-          <h1 style={S.title}>
-            <i
-              className="fa-solid fa-users"
-              style={{ color: "#3b82f6", marginRight: "10px" }}
-            />
-            Utilisateurs
-          </h1>
-          <p style={S.sub}>
-            {users.filter((u) => u.actif).length} actifs / {users.length} total
-          </p>
-        </div>
-        <button style={S.btnPrimary} onClick={() => setShowInvite(true)}>
-          <i className="fa-solid fa-user-plus" />
-          Inviter un utilisateur
-        </button>
-      </div>
-
-      {/* Filtres */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ position: "relative", flex: "1", minWidth: "200px" }}>
-          <i
-            className="fa-solid fa-magnifying-glass"
-            style={{
-              position: "absolute",
-              left: "12px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#6b7280",
-            }}
-          />
-          <input
-            style={{
-              ...S.input,
-              paddingLeft: "36px",
-              background: "#181c27",
-              border: "1px solid #2d3748",
-            }}
-            placeholder="Rechercher par nom, email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <select
-          style={{
-            ...S.select,
-            width: "auto",
-            minWidth: "160px",
-            background: "#181c27",
-            border: "1px solid #2d3748",
-          }}
-          value={filterRole}
-          onChange={(e) => setFilterRole(e.target.value)}
-        >
-          <option value="">Tous les rôles</option>
-          {ROLES.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={S.card}>
-        {loading ? (
+      <div className="ds-main">
+        {/* Header */}
+        <div className="ds-page-header">
+          <div className="ds-eyebrow">Administration</div>
           <div
-            style={{ padding: "48px", textAlign: "center", color: "#9ca3af" }}
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "space-between",
+            }}
           >
-            <i
-              className="fa-solid fa-circle-notch fa-spin"
-              style={{
-                fontSize: "24px",
-                marginBottom: "12px",
-                display: "block",
-              }}
-            />
-            Chargement…
+            <div>
+              <h1 className="ds-page-title">
+                Gestion des <span>Utilisateurs</span>
+              </h1>
+              <p className="ds-page-sub">
+                {actifs} actifs / {users.length} total
+              </p>
+            </div>
+            <button
+              className="ds-btn ds-btn-red"
+              onClick={() => setShowInvite(true)}
+            >
+              <i className="fas fa-user-plus"></i> Inviter un utilisateur
+            </button>
           </div>
-        ) : (
-          <table style={S.table}>
-            <thead>
-              <tr style={{ background: "#0f1117" }}>
-                <th style={S.th}>Utilisateur</th>
-                <th style={S.th}>Rôle</th>
-                <th style={S.th}>Statut</th>
-                <th style={S.th}>Inscrit le</th>
-                <th style={S.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={5}
-                    style={{
-                      ...S.td,
-                      textAlign: "center",
-                      color: "#6b7280",
-                      padding: "32px",
-                    }}
-                  >
-                    Aucun utilisateur trouvé
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((user) => (
-                  <tr key={user.id} style={{ opacity: user.actif ? 1 : 0.5 }}>
-                    <td style={S.td}>
-                      <div style={{ fontWeight: 600, color: "#fff" }}>
-                        {user.prenom} {user.nom}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        {user.email}
-                      </div>
-                    </td>
-                    <td style={S.td}>
-                      <span style={{ ...S.badge, ...getRoleStyle(user.role) }}>
-                        {ROLES.find((r) => r.value === user.role)?.label ||
-                          user.role}
-                      </span>
-                    </td>
-                    <td style={S.td}>
-                      <span
-                        style={{
-                          ...S.badge,
-                          ...(user.actif
-                            ? { background: "#10b98122", color: "#10b981" }
-                            : { background: "#ef444422", color: "#ef4444" }),
-                        }}
-                      >
-                        {user.actif ? "Actif" : "Désactivé"}
-                      </span>
-                    </td>
-                    <td style={{ ...S.td, color: "#9ca3af", fontSize: "13px" }}>
-                      {new Date(user.createdAt).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td style={S.td}>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <button
+        </div>
+
+        {/* KPI Strip */}
+        <div className="ds-kpi-strip">
+          {[
+            { lbl: "Total", val: users.length, cls: "", icon: "fa-users" },
+            {
+              lbl: "Actifs",
+              val: actifs,
+              cls: "green",
+              icon: "fa-circle-check",
+            },
+            {
+              lbl: "Désactivés",
+              val: users.filter((u) => !u.actif).length,
+              cls: "red",
+              icon: "fa-ban",
+            },
+            {
+              lbl: "Admins",
+              val: users.filter((u) => u.role === "admin").length,
+              cls: "amber",
+              icon: "fa-shield-halved",
+            },
+          ].map((k) => (
+            <div key={k.lbl} className="ds-kpi">
+              <div className="ds-kpi-lbl">{k.lbl}</div>
+              <div className={`ds-kpi-val ${k.cls}`}>{k.val}</div>
+              <i className={`fas ${k.icon} ds-kpi-icon`}></i>
+            </div>
+          ))}
+        </div>
+
+        <div className="ds-content">
+          {/* Filtres */}
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              marginBottom: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+              <i
+                className="fas fa-magnifying-glass"
+                style={{
+                  position: "absolute",
+                  left: 11,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--ds-ink-3)",
+                  fontSize: ".8rem",
+                }}
+              ></i>
+              <input
+                className="ds-input"
+                style={{ paddingLeft: 32 }}
+                placeholder="Rechercher par nom, email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              className="ds-select"
+              style={{ width: "auto", minWidth: 160 }}
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+            >
+              <option value="">Tous les rôles</option>
+              {ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Table */}
+          <div className="ds-card">
+            <div className="ds-card-head">
+              <div className="ds-card-title">
+                <span className="ds-card-dot"></span>Liste des utilisateurs
+              </div>
+              <span
+                style={{
+                  fontSize: ".72rem",
+                  color: "var(--ds-ink-3)",
+                  fontWeight: 600,
+                }}
+              >
+                {filtered.length} entrée(s)
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="ds-loading">
+                <i
+                  className="fas fa-spinner fa-spin"
+                  style={{ marginRight: 8 }}
+                ></i>
+                Chargement…
+              </div>
+            ) : (
+              <div className="ds-table-wrap">
+                <table className="ds-table">
+                  <thead>
+                    <tr>
+                      {[
+                        "Utilisateur",
+                        "Rôle",
+                        "Statut",
+                        "Inscrit le",
+                        "Actions",
+                      ].map((h) => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
                           style={{
-                            ...S.actionBtn,
-                            borderColor: "#f59e0b44",
-                            color: "#f59e0b",
+                            textAlign: "center",
+                            padding: 32,
+                            color: "var(--ds-ink-3)",
                           }}
-                          onClick={() => setRoleModal(user)}
-                          title="Changer le rôle"
                         >
-                          <i className="fa-solid fa-user-gear" /> Rôle
-                        </button>
-                        <button
-                          style={{
-                            ...S.actionBtn,
-                            borderColor: user.actif ? "#ef444444" : "#10b98144",
-                            color: user.actif ? "#ef4444" : "#10b981",
-                          }}
-                          onClick={() => toggleActif(user)}
-                          title={user.actif ? "Désactiver" : "Réactiver"}
+                          Aucun utilisateur trouvé
+                        </td>
+                      </tr>
+                    ) : (
+                      filtered.map((user) => (
+                        <tr
+                          key={user.id}
+                          style={{ opacity: user.actif ? 1 : 0.5 }}
                         >
-                          <i
-                            className={`fa-solid ${user.actif ? "fa-ban" : "fa-rotate-right"}`}
-                          />
-                          {user.actif ? "Désactiver" : "Réactiver"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        )}
+                          <td>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: "50%",
+                                  background: "var(--ds-surface-2)",
+                                  border: "1px solid var(--ds-border)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontWeight: 700,
+                                  fontSize: ".78rem",
+                                  color: "var(--ds-ink-2)",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {(user.prenom?.[0] || "").toUpperCase()}
+                                {(user.nom?.[0] || "").toUpperCase()}
+                              </div>
+                              <div>
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    color: "var(--ds-ink)",
+                                  }}
+                                >
+                                  {user.prenom} {user.nom}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: ".72rem",
+                                    color: "var(--ds-ink-3)",
+                                  }}
+                                >
+                                  {user.email}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={getRoleBadgeCls(user.role)}>
+                              {getRoleLabel(user.role)}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`ds-badge ${user.actif ? "ds-badge-green" : "ds-badge-red"}`}
+                            >
+                              <span
+                                className="ds-badge-dot"
+                                style={{
+                                  background: user.actif
+                                    ? "var(--ds-green)"
+                                    : "var(--ds-red)",
+                                }}
+                              ></span>
+                              {user.actif ? "Actif" : "Désactivé"}
+                            </span>
+                          </td>
+                          <td
+                            className="mono"
+                            style={{ color: "var(--ds-ink-3)" }}
+                          >
+                            {new Date(user.createdAt).toLocaleDateString(
+                              "fr-FR",
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button
+                                className="ds-btn ds-btn-outline ds-btn-sm"
+                                onClick={() => setRoleModal(user)}
+                                title="Changer le rôle"
+                              >
+                                <i className="fas fa-user-gear"></i> Rôle
+                              </button>
+                              <button
+                                className="ds-btn ds-btn-sm"
+                                style={{
+                                  background: "transparent",
+                                  border: `1px solid ${user.actif ? "var(--ds-red-mid)" : "#bbf7d0"}`,
+                                  color: user.actif
+                                    ? "var(--ds-red)"
+                                    : "var(--ds-green)",
+                                }}
+                                onClick={() => toggleActif(user)}
+                              >
+                                <i
+                                  className={`fas ${user.actif ? "fa-ban" : "fa-rotate-right"}`}
+                                ></i>
+                                {user.actif ? "Désactiver" : "Réactiver"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

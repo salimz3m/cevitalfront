@@ -1,62 +1,90 @@
+// pages/stock/StockCLRDetail.jsx — Redesign blanc épuré
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../../utils/api";
 import { useToast } from "../../context/ToastContext";
+import { DS_STYLE } from "../design-system";
 
-const FAMILLE_DOT = {
-  HUILE: "#f59e0b",
-  MARGARINE: "#ec4899",
-  SUCRE: "#8b5cf6",
-  SMEN: "#f97316",
-  CHOCOLAT: "#ef4444",
-  SAUCE: "#22c55e",
-  EAU: "#3b82f6",
-  MIEL: "#eab308",
-  CONFITURE: "#d946ef",
-  BOISSON: "#10b981",
-  PALETTE: "#64748b",
+const FAMILLE_COLOR = {
+  HUILE: "var(--ds-amber)",
+  MARGARINE: "var(--ds-red)",
+  SUCRE: "var(--ds-purple)",
+  SMEN: "var(--ds-amber)",
+  CHOCOLAT: "var(--ds-red)",
+  SAUCE: "var(--ds-green)",
+  EAU: "var(--ds-blue)",
+  MIEL: "var(--ds-amber)",
+  CONFITURE: "var(--ds-purple)",
+  BOISSON: "var(--ds-green)",
+  PALETTE: "var(--ds-ink-3)",
 };
 
+const FAMILLE_BADGE_CLS = {
+  HUILE: "ds-badge-amber",
+  MARGARINE: "ds-badge-red",
+  SUCRE: "ds-badge-purple",
+  SMEN: "ds-badge-amber",
+  CHOCOLAT: "ds-badge-red",
+  SAUCE: "ds-badge-green",
+  EAU: "ds-badge-blue",
+  MIEL: "ds-badge-amber",
+  CONFITURE: "ds-badge-purple",
+  BOISSON: "ds-badge-green",
+  PALETTE: "ds-badge-neutral",
+};
+
+const TYPE_CONFIG = {
+  ENTREE_LIVRAISON: {
+    label: "Entrée livraison",
+    badgeCls: "ds-badge ds-badge-green",
+    sign: "+",
+  },
+  SORTIE_PLANIF: {
+    label: "Sortie planif",
+    badgeCls: "ds-badge ds-badge-red",
+    sign: "-",
+  },
+  AJUSTEMENT_MANUEL: {
+    label: "Ajustement",
+    badgeCls: "ds-badge ds-badge-blue",
+    sign: "±",
+  },
+  RETOUR: { label: "Retour", badgeCls: "ds-badge ds-badge-purple", sign: "+" },
+  PERTE: { label: "Perte", badgeCls: "ds-badge ds-badge-neutral", sign: "-" },
+};
+
+// ── Barre de niveau ───────────────────────────────────────────
 const NiveauBar = ({ disponible, reservee, optimal, minimum }) => {
   const total = optimal || 100;
   const pctDispo = Math.min(100, (disponible / total) * 100);
   const pctRes = Math.min(100 - pctDispo, (reservee / total) * 100);
   const pctMin = minimum ? (minimum / total) * 100 : 0;
+  const barColor =
+    pctDispo > 50
+      ? "var(--ds-green)"
+      : pctDispo > 20
+        ? "var(--ds-amber)"
+        : "var(--ds-red)";
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
-      <div
-        style={{
-          height: 8,
-          background: "#23283a",
-          borderRadius: 4,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            height: "100%",
-          }}
-        >
+      <div className="ds-bar-track">
+        <div style={{ display: "flex", height: "100%" }}>
           <div
-            style={{
-              width: `${pctDispo}%`,
-              background:
-                pctDispo > 50
-                  ? "#22c55e"
-                  : pctDispo > 20
-                    ? "#f59e0b"
-                    : "#ef4444",
-              transition: "width 0.4s",
-            }}
+            className="ds-bar-fill"
+            style={{ width: `${pctDispo}%`, background: barColor }}
           />
           <div
-            style={{ width: `${pctRes}%`, background: "#fb923c", opacity: 0.6 }}
+            style={{
+              width: `${pctRes}%`,
+              background: "var(--ds-amber)",
+              opacity: 0.5,
+              height: "100%",
+              borderRadius: 3,
+            }}
           />
         </div>
       </div>
-      {/* Marqueur seuil minimum */}
       {pctMin > 0 && pctMin < 100 && (
         <div
           style={{
@@ -64,8 +92,8 @@ const NiveauBar = ({ disponible, reservee, optimal, minimum }) => {
             top: -2,
             left: `${pctMin}%`,
             width: 2,
-            height: 12,
-            background: "#f59e0b",
+            height: 10,
+            background: "var(--ds-amber)",
             transform: "translateX(-50%)",
           }}
         />
@@ -74,16 +102,18 @@ const NiveauBar = ({ disponible, reservee, optimal, minimum }) => {
   );
 };
 
+// ════════════════════════════════════════════════════════════════
 export default function StockCLRDetail() {
-  const { id: clrId } = useParams(); // lit "id" et le renomme clrId
+  const { id: clrId } = useParams();
   const [data, setData] = useState(null);
   const [mouvements, setMouvements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [onglet, setOnglet] = useState("stock");
   const [filtreFamille, setFiltreFamille] = useState("");
   const { toast } = useToast();
+
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       setLoading(true);
       try {
         const [stockRes, mouvsRes] = await Promise.all([
@@ -97,8 +127,7 @@ export default function StockCLRDetail() {
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
+    })();
   }, [clrId]);
 
   if (loading)
@@ -109,13 +138,17 @@ export default function StockCLRDetail() {
           alignItems: "center",
           justifyContent: "center",
           height: 300,
-          color: "#64748b",
+          background: "var(--ds-bg)",
+          fontFamily: "var(--ds-font)",
         }}
       >
-        Chargement...
+        <style dangerouslySetInnerHTML={{ __html: DS_STYLE }} />
+        <div className="ds-loading">
+          <i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }}></i>
+          Chargement…
+        </div>
       </div>
     );
-
   if (!data) return null;
 
   const stocks = data.stocks || [];
@@ -126,526 +159,457 @@ export default function StockCLRDetail() {
     ? stocks.filter((s) => s.produit?.famille === filtreFamille)
     : stocks;
 
-  const TYPE_CONFIG = {
-    ENTREE_LIVRAISON: {
-      label: "Entrée livraison",
-      color: "#22c55e",
-      icon: "📥",
-    },
-    SORTIE_PLANIF: { label: "Sortie planif", color: "#ef4444", icon: "📤" },
-    AJUSTEMENT_MANUEL: { label: "Ajustement", color: "#f59e0b", icon: "✏️" },
-    RETOUR: { label: "Retour", color: "#8b5cf6", icon: "↩️" },
-    PERTE: { label: "Perte", color: "#94a3b8", icon: "🗑️" },
-  };
+  const alertes = stocks.filter(
+    (s) => s.qteDisponible < (s.seuilMinimum || 0),
+  ).length;
+  const ruptures = stocks.filter((s) => s.qteDisponible <= 0).length;
+  const totalDispo = stocks
+    .reduce((a, s) => a + (s.qteDisponible || 0), 0)
+    .toFixed(0);
 
   return (
-    <div style={{ padding: "30px 32px", maxWidth: 1200, margin: "0 auto" }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          marginBottom: 28,
-        }}
-      >
-        <Link
-          to="/stock"
-          style={{ color: "#64748b", textDecoration: "none", fontSize: 20 }}
-        >
-          ←
-        </Link>
-        <div>
-          <h1
-            style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}
-          >
-            🏬 {data.clr?.nom || `CLR #${clrId}`}
+    <div className="ds-layout">
+      <style dangerouslySetInnerHTML={{ __html: DS_STYLE }} />
+      <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      />
+
+      <div className="ds-main">
+        {/* Header */}
+        <div className="ds-page-header">
+          <div className="ds-eyebrow">
+            <Link
+              to="/stock"
+              style={{
+                color: "var(--ds-red)",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <i
+                className="fas fa-arrow-left"
+                style={{ fontSize: ".8rem" }}
+              ></i>{" "}
+              Stock
+            </Link>
+          </div>
+          <h1 className="ds-page-title">
+            <span>{data.clr?.nom || `CLR #${clrId}`}</span>
           </h1>
-          <p style={{ color: "#64748b", margin: "4px 0 0", fontSize: 13 }}>
+          <p className="ds-page-sub">
             {data.clr?.plateforme?.nom &&
               `Plateforme ${data.clr.plateforme.nom} — `}
             {data.clr?.wilaya} · {stocks.length} produits
           </p>
         </div>
-      </div>
 
-      {/* Stats rapides */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
-        {[
-          {
-            label: "Produits en stock",
-            val: stocks.filter((s) => s.qteDisponible > 0).length,
-            color: "#3b82f6",
-          },
-          {
-            label: "Alertes",
-            val: stocks.filter((s) => s.qteDisponible < (s.seuilMinimum || 0))
-              .length,
-            color: "#f59e0b",
-          },
-          {
-            label: "Ruptures",
-            val: stocks.filter((s) => s.qteDisponible <= 0).length,
-            color: "#ef4444",
-          },
-          {
-            label: "Total disponible",
-            val: stocks
-              .reduce((a, s) => a + (s.qteDisponible || 0), 0)
-              .toFixed(0),
-            color: "#22c55e",
-          },
-        ].map((s, i) => (
-          <div
-            key={i}
-            style={{
-              background: "#181c27",
-              border: "1px solid #23283a",
-              borderRadius: 12,
-              padding: "16px 20px",
-            }}
-          >
-            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>
-              {s.val}
+        {/* KPI Strip */}
+        <div className="ds-kpi-strip">
+          {[
+            {
+              lbl: "En stock",
+              val: stocks.filter((s) => s.qteDisponible > 0).length,
+              cls: "blue",
+              icon: "fa-cubes",
+            },
+            {
+              lbl: "Alertes seuil",
+              val: alertes,
+              cls: "amber",
+              icon: "fa-triangle-exclamation",
+            },
+            {
+              lbl: "Ruptures",
+              val: ruptures,
+              cls: "red",
+              icon: "fa-circle-xmark",
+            },
+            {
+              lbl: "Total disponible",
+              val: Number(totalDispo).toLocaleString("fr-FR"),
+              cls: "green",
+              icon: "fa-warehouse",
+            },
+          ].map((k) => (
+            <div key={k.lbl} className="ds-kpi">
+              <div className="ds-kpi-lbl">{k.lbl}</div>
+              <div className={`ds-kpi-val ${k.cls}`}>{k.val}</div>
+              <i className={`fas ${k.icon} ds-kpi-icon`}></i>
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-              {s.label}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* Onglets */}
-      <div
-        style={{
-          display: "flex",
-          gap: 2,
-          marginBottom: 20,
-          background: "#181c27",
-          borderRadius: 10,
-          padding: 4,
-          width: "fit-content",
-        }}
-      >
-        {[
-          { key: "stock", label: "📦 Stock produits" },
-          { key: "mouvements", label: "🔄 Mouvements récents" },
-        ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setOnglet(t.key)}
-            style={{
-              background: onglet === t.key ? "#23283a" : "transparent",
-              border: "none",
-              color: onglet === t.key ? "#fff" : "#64748b",
-              padding: "8px 18px",
-              borderRadius: 8,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: onglet === t.key ? 600 : 400,
-              transition: "all 0.2s",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {onglet === "stock" && (
-        <>
-          {/* Filtre famille */}
-          <div
-            style={{
-              marginBottom: 16,
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
+        {/* Tabs */}
+        <div className="ds-tabs">
+          {[
+            { key: "stock", icon: "fa-boxes-stacked", label: "Stock produits" },
+            {
+              key: "mouvements",
+              icon: "fa-arrows-rotate",
+              label: "Mouvements récents",
+            },
+          ].map((t) => (
             <button
-              onClick={() => setFiltreFamille("")}
-              style={{
-                background: !filtreFamille ? "#3b82f6" : "#181c27",
-                border: `1px solid ${!filtreFamille ? "#3b82f6" : "#23283a"}`,
-                color: !filtreFamille ? "#fff" : "#64748b",
-                padding: "5px 14px",
-                borderRadius: 20,
-                fontSize: 12,
-                cursor: "pointer",
-              }}
+              key={t.key}
+              className={`ds-tab ${onglet === t.key ? "active" : ""}`}
+              onClick={() => setOnglet(t.key)}
             >
-              Toutes
+              <i className={`fas ${t.icon}`}></i>
+              {t.label}
             </button>
-            {familles.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFiltreFamille(f)}
+          ))}
+        </div>
+
+        <div className="ds-content">
+          {/* ── Onglet Stock ── */}
+          {onglet === "stock" && (
+            <>
+              {/* Filtres famille */}
+              <div
                 style={{
-                  background: filtreFamille === f ? "#23283a" : "#181c27",
-                  border: `1px solid ${filtreFamille === f ? FAMILLE_DOT[f] : "#23283a"}`,
-                  color:
-                    filtreFamille === f ? FAMILLE_DOT[f] || "#fff" : "#64748b",
-                  padding: "5px 14px",
-                  borderRadius: 20,
-                  fontSize: 12,
-                  cursor: "pointer",
+                  display: "flex",
+                  gap: 6,
+                  marginBottom: 18,
+                  flexWrap: "wrap",
                 }}
               >
+                <button
+                  className={`ds-chip ${!filtreFamille ? "active" : ""}`}
+                  onClick={() => setFiltreFamille("")}
+                >
+                  Toutes
+                </button>
+                {familles.map((f) => (
+                  <button
+                    key={f}
+                    className={`ds-chip ${filtreFamille === f ? `active-${(FAMILLE_BADGE_CLS[f] || "").replace("ds-badge-", "")}` : ""}`}
+                    onClick={() => setFiltreFamille(f)}
+                  >
+                    <span
+                      style={{
+                        marginRight: 5,
+                        display: "inline-block",
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: FAMILLE_COLOR[f] || "var(--ds-ink-3)",
+                      }}
+                    ></span>
+                    {f}
+                  </button>
+                ))}
+              </div>
+
+              {/* Grille produits */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                  gap: 14,
+                }}
+              >
+                {stocksFiltres.map((s, i) => {
+                  const alerte =
+                    s.seuilMinimum && s.qteDisponible < s.seuilMinimum;
+                  const dot =
+                    FAMILLE_COLOR[s.produit?.famille] || "var(--ds-ink-3)";
+                  const pct = s.seuilOptimal
+                    ? Math.min(100, (s.qteDisponible / s.seuilOptimal) * 100)
+                    : null;
+
+                  return (
+                    <div
+                      key={i}
+                      className="ds-card"
+                      style={{
+                        marginBottom: 0,
+                        borderLeft: alerte
+                          ? "3px solid var(--ds-amber)"
+                          : undefined,
+                      }}
+                    >
+                      <div className="ds-card-body">
+                        {/* En-tête produit */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            marginBottom: 14,
+                          }}
+                        >
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                color: "var(--ds-ink)",
+                                fontSize: ".86rem",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {s.produit?.nom || "Produit inconnu"}
+                            </div>
+                            <div
+                              className="mono"
+                              style={{
+                                color: "var(--ds-ink-3)",
+                                fontSize: ".68rem",
+                                marginTop: 2,
+                              }}
+                            >
+                              {s.produit?.sku}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: dot,
+                              flexShrink: 0,
+                              marginTop: 5,
+                            }}
+                          />
+                        </div>
+
+                        {/* Chiffres */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr 1fr",
+                            gap: 8,
+                            marginBottom: 12,
+                          }}
+                        >
+                          {[
+                            {
+                              lbl: "Dispo",
+                              val: (s.qteDisponible || 0).toFixed(0),
+                              color: "var(--ds-green)",
+                            },
+                            {
+                              lbl: "Réservé",
+                              val: (s.qteReservee || 0).toFixed(0),
+                              color: "var(--ds-amber)",
+                            },
+                            {
+                              lbl: "Physique",
+                              val: (
+                                (s.qteDisponible || 0) - (s.qteReservee || 0)
+                              ).toFixed(0),
+                              color: "var(--ds-ink)",
+                            },
+                          ].map((m) => (
+                            <div
+                              key={m.lbl}
+                              style={{
+                                background: "var(--ds-surface-2)",
+                                borderRadius: "var(--ds-radius)",
+                                padding: "8px 10px",
+                                border: "1px solid var(--ds-border)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: ".58rem",
+                                  fontWeight: 700,
+                                  textTransform: "uppercase",
+                                  letterSpacing: ".08em",
+                                  color: "var(--ds-ink-3)",
+                                  marginBottom: 3,
+                                }}
+                              >
+                                {m.lbl}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "1.1rem",
+                                  fontWeight: 700,
+                                  color: m.color,
+                                  fontFamily: "var(--ds-mono)",
+                                }}
+                              >
+                                {m.val}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Barre de niveau */}
+                        {pct !== null && (
+                          <div>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                fontSize: ".62rem",
+                                color: "var(--ds-ink-3)",
+                                marginBottom: 5,
+                              }}
+                            >
+                              <span>
+                                vs objectif {s.seuilOptimal?.toFixed(0)}
+                              </span>
+                              <span style={{ fontWeight: 700 }}>
+                                {pct.toFixed(0)}%
+                              </span>
+                            </div>
+                            <NiveauBar
+                              disponible={s.qteDisponible}
+                              reservee={s.qteReservee}
+                              optimal={s.seuilOptimal}
+                              minimum={s.seuilMinimum}
+                            />
+                          </div>
+                        )}
+
+                        {/* Alerte seuil */}
+                        {alerte && (
+                          <div
+                            className="ds-alert ds-alert-warn"
+                            style={{ marginTop: 10, padding: "6px 10px" }}
+                          >
+                            <i
+                              className="fas fa-triangle-exclamation"
+                              style={{ flexShrink: 0 }}
+                            ></i>
+                            <span style={{ fontSize: ".76rem" }}>
+                              Sous le seuil minimum (
+                              {s.seuilMinimum?.toFixed(0)})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* ── Onglet Mouvements ── */}
+          {onglet === "mouvements" && (
+            <div className="ds-card">
+              <div className="ds-card-head">
+                <div className="ds-card-title">
+                  <span className="ds-card-dot"></span>Mouvements récents
+                </div>
                 <span
                   style={{
-                    marginRight: 5,
-                    display: "inline-block",
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: FAMILLE_DOT[f],
-                  }}
-                />
-                {f}
-              </button>
-            ))}
-          </div>
-
-          {/* Grille produits */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: 14,
-            }}
-          >
-            {stocksFiltres.map((s, i) => {
-              const pct = s.seuilOptimal
-                ? Math.min(100, (s.qteDisponible / s.seuilOptimal) * 100)
-                : null;
-              const alerte = s.seuilMinimum && s.qteDisponible < s.seuilMinimum;
-              const dot = FAMILLE_DOT[s.produit?.famille] || "#64748b";
-              return (
-                <div
-                  key={i}
-                  style={{
-                    background: "#181c27",
-                    border: `1px solid ${alerte ? "#92400e" : "#23283a"}`,
-                    borderRadius: 12,
-                    padding: 18,
-                    transition: "border-color 0.2s",
+                    fontSize: ".72rem",
+                    color: "var(--ds-ink-3)",
+                    fontWeight: 600,
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          color: "#e2e8f0",
-                          fontSize: 13,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {s.produit?.nom || "Produit inconnu"}
-                      </div>
-                      <div
-                        style={{
-                          color: "#64748b",
-                          fontSize: 11,
-                          marginTop: 2,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {s.produit?.sku}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: dot,
-                        flexShrink: 0,
-                        marginTop: 3,
-                      }}
-                    />
-                  </div>
+                  {mouvements.length} entrée(s)
+                </span>
+              </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 8,
-                      marginBottom: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        background: "#0f1117",
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: "#64748b",
-                          marginBottom: 2,
-                        }}
-                      >
-                        Dispo
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 16,
-                          fontWeight: 700,
-                          color: "#4ade80",
-                        }}
-                      >
-                        {(s.qteDisponible || 0).toFixed(0)}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: "#0f1117",
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: "#64748b",
-                          marginBottom: 2,
-                        }}
-                      >
-                        Réservé
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 16,
-                          fontWeight: 700,
-                          color: "#fb923c",
-                        }}
-                      >
-                        {(s.qteReservee || 0).toFixed(0)}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: "#0f1117",
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: "#64748b",
-                          marginBottom: 2,
-                        }}
-                      >
-                        Physique
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 16,
-                          fontWeight: 700,
-                          color: "#e2e8f0",
-                        }}
-                      >
-                        {(
-                          (s.qteDisponible || 0) - (s.qteReservee || 0)
-                        ).toFixed(0)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {pct !== null && (
-                    <div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          fontSize: 10,
-                          color: "#64748b",
-                          marginBottom: 4,
-                        }}
-                      >
-                        <span>vs objectif {s.seuilOptimal?.toFixed(0)}</span>
-                        <span>{pct.toFixed(0)}%</span>
-                      </div>
-                      <NiveauBar
-                        disponible={s.qteDisponible}
-                        reservee={s.qteReservee}
-                        optimal={s.seuilOptimal}
-                        minimum={s.seuilMinimum}
-                      />
-                    </div>
-                  )}
-
-                  {alerte && (
-                    <div
-                      style={{
-                        marginTop: 10,
-                        fontSize: 11,
-                        color: "#fbbf24",
-                        background: "#1a1207",
-                        borderRadius: 6,
-                        padding: "5px 10px",
-                      }}
-                    >
-                      ⚠️ Sous le seuil minimum ({s.seuilMinimum?.toFixed(0)})
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {onglet === "mouvements" && (
-        <div
-          style={{
-            background: "#181c27",
-            border: "1px solid #23283a",
-            borderRadius: 14,
-            overflow: "hidden",
-          }}
-        >
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #23283a" }}>
-                {[
-                  "Date",
-                  "Produit",
-                  "Type",
-                  "Quantité",
-                  "Référence",
-                  "Opérateur",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "13px 16px",
-                      textAlign: "left",
-                      fontSize: 11,
-                      color: "#64748b",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
               {mouvements.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    style={{
-                      padding: 30,
-                      textAlign: "center",
-                      color: "#64748b",
-                    }}
-                  >
-                    Aucun mouvement récent
-                  </td>
-                </tr>
+                <div className="ds-empty">
+                  <i className="fas fa-inbox"></i>
+                  <p>Aucun mouvement récent</p>
+                </div>
               ) : (
-                mouvements.map((m, i) => {
-                  const cfg = TYPE_CONFIG[m.type] || {
-                    label: m.type,
-                    color: "#64748b",
-                    icon: "•",
-                  };
-                  return (
-                    <tr key={i} style={{ borderBottom: "1px solid #1a1f2e" }}>
-                      <td
-                        style={{
-                          padding: "12px 16px",
-                          color: "#64748b",
-                          fontSize: 12,
-                        }}
-                      >
-                        {new Date(m.createdAt).toLocaleDateString("fr-DZ", {
-                          day: "2-digit",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td
-                        style={{
-                          padding: "12px 16px",
-                          color: "#e2e8f0",
-                          fontSize: 13,
-                        }}
-                      >
-                        {m.produit?.nom || m.produitId}
-                      </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <span style={{ color: cfg.color, fontSize: 12 }}>
-                          {cfg.icon} {cfg.label}
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          padding: "12px 16px",
-                          fontWeight: 700,
-                          color: m.quantite > 0 ? "#4ade80" : "#ef4444",
-                          fontSize: 14,
-                        }}
-                      >
-                        {m.quantite > 0 ? "+" : ""}
-                        {m.quantite}
-                      </td>
-                      <td
-                        style={{
-                          padding: "12px 16px",
-                          color: "#64748b",
-                          fontSize: 12,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {m.referenceId ? `#${m.referenceId}` : "—"}
-                      </td>
-                      <td
-                        style={{
-                          padding: "12px 16px",
-                          color: "#94a3b8",
-                          fontSize: 12,
-                        }}
-                      >
-                        {m.user?.name || m.userId || "Système"}
-                      </td>
-                    </tr>
-                  );
-                })
+                <div className="ds-table-wrap">
+                  <table className="ds-table">
+                    <thead>
+                      <tr>
+                        {[
+                          "Date",
+                          "Produit",
+                          "Type",
+                          "Quantité",
+                          "Référence",
+                          "Opérateur",
+                        ].map((h) => (
+                          <th key={h}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mouvements.map((m, i) => {
+                        const cfg = TYPE_CONFIG[m.type] || {
+                          label: m.type,
+                          badgeCls: "ds-badge ds-badge-neutral",
+                          sign: "",
+                        };
+                        return (
+                          <tr key={i}>
+                            <td
+                              className="mono"
+                              style={{
+                                color: "var(--ds-ink-3)",
+                                fontSize: ".72rem",
+                              }}
+                            >
+                              {new Date(m.createdAt).toLocaleDateString(
+                                "fr-DZ",
+                                {
+                                  day: "2-digit",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </td>
+                            <td style={{ color: "var(--ds-ink)" }}>
+                              {m.produit?.nom || m.produitId}
+                            </td>
+                            <td>
+                              <span className={cfg.badgeCls}>{cfg.label}</span>
+                            </td>
+                            <td
+                              style={{
+                                fontWeight: 700,
+                                fontFamily: "var(--ds-mono)",
+                                color:
+                                  m.quantite > 0
+                                    ? "var(--ds-green)"
+                                    : "var(--ds-red)",
+                              }}
+                            >
+                              {m.quantite > 0 ? "+" : ""}
+                              {m.quantite}
+                            </td>
+                            <td
+                              className="mono"
+                              style={{ color: "var(--ds-ink-3)" }}
+                            >
+                              {m.referenceId ? `#${m.referenceId}` : "—"}
+                            </td>
+                            <td style={{ color: "var(--ds-ink-2)" }}>
+                              {m.user?.name || m.userId || "Système"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </tbody>
-          </table>
-          <div style={{ padding: "12px 16px", borderTop: "1px solid #23283a" }}>
-            <Link
-              to="/stock/mouvements"
-              style={{ color: "#60a5fa", fontSize: 12, textDecoration: "none" }}
-            >
-              Voir tout le journal →
-            </Link>
-          </div>
+
+              <div
+                style={{
+                  padding: "12px 22px",
+                  borderTop: "1px solid var(--ds-border)",
+                }}
+              >
+                <Link
+                  to="/stock/mouvements"
+                  className="ds-btn ds-btn-ghost ds-btn-sm"
+                  style={{ textDecoration: "none" }}
+                >
+                  <i className="fas fa-arrow-right"></i> Voir tout le journal
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
